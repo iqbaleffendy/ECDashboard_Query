@@ -1,28 +1,41 @@
 --delete from EDW_ANALYTICS.dbo.invoiceDataLogScore where format(MTD, 'yyyyMM') = format(CURRENT_TIMESTAMP, 'yyyyMM');
---delete from EDW_ANALYTICS.dbo.invoiceDataLogScore where format(MTD, 'yyyyMM') = '202111';
---drop table EDW_ANALYTICS.dbo.invoiceDataLogScore;
+truncate table EDW_ANALYTICS.dbo.invoiceDataLogScore;
 
-with forecaseDaily as(
-select
-    oppt.LEAD_ID LeadID,
-    oppt.OPPORTUNITY_ID OpportunityID,
-    oppt.ITEM_NO OpportunityItemNo,
-	oppt.SO_ID SOID,
-    oppt.ITEM_NO_SO SOItemNo,
-    cic.CIC_Group CICGroup,
-    da.INDUSTRY_KEY
-from
-[LS_BI_PROD].EDW_CRM_ANALYTICS.dbo.FACT_CRM_OPPORTUNITY oppt
-left join [LS_BI_PROD].EDW_DIMENSION.CRM.DIM_CUSTOMER dc on (oppt.CUSTOMER_KEY = dc.CUSTOMER_KEY) 
-left join [LS_BI_PROD].EDW_DIMENSION.CRM.Dim_CIC cic on (oppt.CIC_KEY = cic.CIC_KEY)
-left join [LS_BI_PROD].EDW_ANALYTICS.ECC.dim_account da on (case when dc.CUSTOMER_CODE < 0 then dc.CUSTOMER_CODE else RIGHT('00000' + CAST(dc.CUSTOMER_CODE as varchar(10)), 10) end = da.account_id)
-where 1=1
-and format(CONVERT(date, CAST(oppt.DELIVERY_DATE_KEY AS varchar)),'yyyy')=format(CURRENT_TIMESTAMP,'yyyy')
-            
+with productgroupmapping as(
+select 
+	Row#,
+	product_material_code,
+	model_general,
+	REPLACE(LTRIM(REPLACE(RIGHT(product_hierarchy_detail, LEN(product_hierarchy_detail) - 4), '0', ' ')), ' ', '0') as model_detail,
+	product_hierarchy_general,
+	product_hierarchy_detail,
+	description
+from (
+
+select * from (
+		select 
+			ROW_NUMBER() OVER(PARTITION BY aa.product_material_code ORDER BY aa.product_material_code ASC) AS Row#, 
+			aa.product_material_code, 
+			case when bb.Model_Desc is null then mm.product_model else bb.Model_Desc end model_general,
+			replace(mm.product_model, ' ', '') model_detail, 
+			case when bb.Model is null then product_hierarchy else bb.Model end  product_hierarchy_general, 
+			case 
+				when bb.Series_Rating is null and bb.Model is not null then model 
+				when bb.Series_Rating is null and bb.Model is null then product_hierarchy else bb.Series_Rating end product_hierarchy_detail,
+			aa.description 
+		from 
+		[LS_BI_PROD].EDW_DIMENSION.CRM.DIM_PRODUCT_MATERIAL mm 
+		left join [LS_BI_PROD].EDW_ANALYTICS.CRM.dim_opp_product_material aa 
+		on (case when isnumeric(mm.product_material_code)=1 then cast(CAST(mm.product_material_code as int) as nvarchar)  else mm.product_material_code end = case when isnumeric(aa.product_material_code)=1 then cast(CAST(aa.product_material_code as int) as nvarchar)  else aa.product_material_code end)
+		left join [LS_BI_PROD].[EDW_ANALYTICS].[ECC].[dim_material_prod_hie] bb on aa.product_hierarchy = bb.Model or aa.product_hierarchy = bb.Series_Rating
+		where LEFT(product_hierarchy,2) in ('M1', 'E1', 'F1') and mm.product_model is not null
+	) cc where Row# =1
+) dd
 )
 
---insert into EDW_ANALYTICS.dbo.invoiceDataLogScore
+insert into EDW_ANALYTICS.dbo.invoiceDataLogScore
 select 
+	distinct
 	case when (sales_type = 'PP' and Status in ('BACK OUT', 'EX-BACK OUT')) then BillingDate
 	when sales_type in ('ST3', 'ST5') then SCORE_DATE
 	when SCORE_DATE is null then BillingDate
@@ -40,14 +53,7 @@ select
 		when das.area_name like '%Sumatera' and MaterialType in ('MACHINE', 'FORK_LIFT') then 'Sumatera'
 		when das.area_name = 'Trakindo Utama' then 'TUS'
 	else das.area_name end as area_name,
-	case when das.area_name like '%MA' Then 'Major Account' else 'Retail Account' end Customer_Type,
-	case 
-		when das.area_name like '%MA' Then CICGroups 
-	else 
-		case 
-			when (market_sector is null or market_sector='') then CICGroups 
-		else market_sector end 
-	end MarketSector
+	case when das.area_name like '%MA' Then 'Major Account' else 'Retail Account' end Customer_Type
 from (
 
 select
@@ -71,15 +77,14 @@ select
 	ScoreLog.SCORE_TIME,
 	CAST(ScoreLog.SCORE_DATE as DATETIME) + CAST(ScoreLog.SCORE_TIME as DATETIME) AS SCORE_TIME_SAP,
 	ScoreLog.SCORE_ERROR,
-	case when ScoreLog.SCORE_DATE < DATEFROMPARTS(YEAR(b.BILLING_DATE), MONTH(b.BILLING_DATE)+1, 1) and format(b.billing_date, 'yyyy-MM') <> format(ScoreLog.SCORE_DATE, 'yyyy-MM') and ScoreLog.CUST_NAME_OR_RENT_CUST_NAME = b.CUST_NAME and ScoreLog.SCORE_ERROR = 'N' then 'BACK OUT'
-		when ScoreLog.SCORE_DATE >= DATEFROMPARTS(YEAR(b.BILLING_DATE), MONTH(b.BILLING_DATE)+1, 1) and DATEPART(HOUR, ScoreLog.SCORE_TIME) > 6 and format(b.billing_date, 'yyyy-MM') <> format(ScoreLog.SCORE_DATE, 'yyyy-MM') and ScoreLog.CUST_NAME_OR_RENT_CUST_NAME = b.CUST_NAME and ScoreLog.SCORE_ERROR = 'N' then 'INVOICED PREVIOUS MONTH'
-		when ScoreLog.SCORE_DATE  < DATEFROMPARTS(YEAR(b.BILLING_DATE), MONTH(b.BILLING_DATE)+1, 1) and format(b.billing_date, 'yyyy-MM') <> format(ScoreLog.SCORE_DATE, 'yyyy-MM') and ScoreLog.CUST_NAME_OR_RENT_CUST_NAME <> b.CUST_NAME and ScoreLog.SCORE_ERROR = 'N' then 'EX-BACK OUT'
+	case when ScoreLog.SCORE_DATE < DATEADD(DAY,1,EOMONTH(b.Billing_Date)) and format(b.billing_date, 'yyyy-MM') <> format(ScoreLog.SCORE_DATE, 'yyyy-MM') and ScoreLog.CUST_NAME_OR_RENT_CUST_NAME = b.CUST_NAME and ScoreLog.SCORE_ERROR = 'N' then 'BACK OUT'
+		when ScoreLog.SCORE_DATE >= DATEADD(DAY,1,EOMONTH(b.Billing_Date)) and DATEPART(HOUR, ScoreLog.SCORE_TIME) > 6 and format(b.billing_date, 'yyyy-MM') <> format(ScoreLog.SCORE_DATE, 'yyyy-MM') and ScoreLog.CUST_NAME_OR_RENT_CUST_NAME = b.CUST_NAME and ScoreLog.SCORE_ERROR = 'N' then 'INVOICED PREVIOUS MONTH'
+		when ScoreLog.SCORE_DATE  < DATEADD(DAY,1,EOMONTH(b.Billing_Date)) and format(b.billing_date, 'yyyy-MM') <> format(ScoreLog.SCORE_DATE, 'yyyy-MM') and ScoreLog.CUST_NAME_OR_RENT_CUST_NAME <> b.CUST_NAME and ScoreLog.SCORE_ERROR = 'N' then 'EX-BACK OUT'
 		when ScoreLog.SCORE_ERROR <> 'N' and ScoreLog.SCORE_DATE is not null and a.AUART = 'ZEPP' then 'FAILED'
 		when ScoreLog.SCORE_DATE is null and a.AUART = 'ZEPP' then 'FAILED'
 		when ScoreLog.SCORE_DATE is null and a.AUART <> 'ZEPP' then 'OTHER DEALER'
 	else 'NEW UNIT' end Status,
 	'PP' sales_type,
-	f.INDUSTRY_KEY,
 	case 
 		when a.VKORG = '0Z02' then 
 			case 
@@ -92,7 +97,6 @@ select
 			end
 		when a.VKORG = '1Z02' then a.GSBER
 	end sales_off_code,
-	cic.cic_group CICGroups,
 	b.mvgr1 market_sector,
 	--case 
 	--	when dpgm.ProductGroup = 'GCI' then 'GCI'
@@ -117,35 +121,14 @@ select * from (
 	and RowNum = 1
 	--and SCORE_ERROR = 'N'
 ) as ScoreLog on b.SERNR = ScoreLog.PRIME_PRODUCT_SERIAL_NUMBER
-left join (
-	select * from (
-		select 
-			ROW_NUMBER() OVER(PARTITION BY aa.product_material_code ORDER BY aa.product_material_code ASC) AS Row#, 
-			aa.product_material_code, 
-			case when bb.Model_Desc is null then mm.product_model else bb.Model_Desc end model_general,
-			mm.product_model model_detail, 
-			case when bb.Model is null then product_hierarchy else bb.Model end  product_hierarchy_general, 
-			case 
-				when bb.Series_Rating is null and bb.Model is not null then model 
-				when bb.Series_Rating is null and bb.Model is null then product_hierarchy else bb.Series_Rating end product_hierarchy_detail,
-			aa.description 
-		from 
-		[LS_BI_PROD].EDW_DIMENSION.CRM.DIM_PRODUCT_MATERIAL mm 
-		left join [LS_BI_PROD].EDW_ANALYTICS.CRM.dim_opp_product_material aa 
-		on (case when isnumeric(mm.product_material_code)=1 then cast(CAST(mm.product_material_code as int) as nvarchar)  else mm.product_material_code end = case when isnumeric(aa.product_material_code)=1 then cast(CAST(aa.product_material_code as int) as nvarchar)  else aa.product_material_code end)
-		left join [LS_BI_PROD].[EDW_ANALYTICS].[ECC].[dim_material_prod_hie] bb on aa.product_hierarchy = bb.Model or aa.product_hierarchy = bb.Series_Rating
-		where LEFT(product_hierarchy,2) in ('M1', 'E1', 'F1') and mm.product_model is not null
-	) cc where Row# =1
-) dpm on CAST(a.MATNR_VBAP AS INT) = CAST (dpm.PRODUCT_MATERIAL_CODE AS INT)
-left join (select DISTINCT cic_group_id,cic_group from ls_bi_prod.EDW_DIMENSION.CRM.Dim_CIC) cic on cic.cic_group_id = b.brsch
-left join forecaseDaily f on cast(a.VBELN_VBAP as int) = f.SOID and a.POSNR_VBAP = f.SOItemNo 
+left join productgroupmapping dpm on CAST(a.MATNR_VBAP AS INT) = CAST (dpm.PRODUCT_MATERIAL_CODE AS INT)
 left join EDW_ANALYTICS.dbo.dim_area_sales d on a.SALID  = d.sales_id
 left join EDW_ANALYTICS.dbo.dim_company_map dcm on dcm.CompanyName = a.Name2_Payer
 --left join EDW_ANALYTICS.dbo.dim_productgroupmapping dpgm on dpgm.Model = dpm.product_model
 
 where 1=1 
-and (FORMAT(b.billing_date, 'yyyy-MM') = '2021-11' or FORMAT(ScoreLog.SCORE_DATE, 'yyyy-MM') = '2021-11') 
---and (FORMAT(b.billing_date, 'yyyy-MM') = format(CURRENT_TIMESTAMP, 'yyyy-MM') or FORMAT(ScoreLog.SCORE_DATE, 'yyyy-MM') = format(CURRENT_TIMESTAMP, 'yyyy-MM')) 
+and (FORMAT(b.billing_date, 'yyyy') = format(CURRENT_TIMESTAMP, 'yyyy') or FORMAT(ScoreLog.SCORE_DATE, 'yyyy') = format(CURRENT_TIMESTAMP, 'yyyy')) 
+--and (FORMAT(b.billing_date, 'yyyyMM') = format(CURRENT_TIMESTAMP, 'yyyyMM') or FORMAT(ScoreLog.SCORE_DATE, 'yyyyMM') = format(CURRENT_TIMESTAMP, 'yyyyMM')) 
 and left(b.MFRPN, 2) in ('M1','E1')
 
 ) a left join EDW_ANALYTICS.dbo.dim_area_store das on das.sales_code = a.sales_off_code
@@ -159,14 +142,7 @@ select
 		when das.area_name like '%Sumatera' and MaterialType in ('MACHINE', 'FORK_LIFT') then 'Sumatera'
 		when das.area_name = 'Trakindo Utama' then 'TUS'
 	else das.area_name end as area_name,
-	case when das.area_name like '%MA' Then 'Major Account' else 'Retail Account' end Customer_Type,
-	case 
-		when das.area_name like '%MA' Then CICGroups 
-	else 
-		case 
-			when (market_sector is null or market_sector='') then CICGroups 
-		else market_sector end 
-	end MarketSector
+	case when das.area_name like '%MA' Then 'Major Account' else 'Retail Account' end Customer_Type
 from (
 
 select 
@@ -189,9 +165,7 @@ select
 	st3.SCORE_ERROR,
 	'NEW UNIT' Status,
 	CASE WHEN st3.SALE_TYPE = 3 THEN 'ST3' WHEN st3.SALE_TYPE = 5 THEN 'ST5' END AS sales_type,
-	f.INDUSTRY_KEY,
 	st3.sales_code AS sales_off_code,
-	f.CICGroup as CICGroups,
 	NULL as market_sector,
 	--case 
 	--	when dpgm.ProductGroup = 'GCI' then 'GCI'
@@ -221,26 +195,7 @@ left join [LS_BI_PROD].EDW_STG_SAP_ECC_DAILY.dbo.ZLDB_V_ODRRUE_BW b
 on a.PRIME_PRODUCT_SERIAL_NUMBER = b.sernr
 left join EDW_ANALYTICS.dbo.dim_area_store c 
 on b.vkbur = c.sales_code
-left join (
-	select * from (
-		select 
-			ROW_NUMBER() OVER(PARTITION BY aa.product_material_code ORDER BY aa.product_material_code ASC) AS Row#, 
-			aa.product_material_code, 
-			case when bb.Model_Desc is null then mm.product_model else bb.Model_Desc end model_general,
-			mm.product_model model_detail, 
-			case when bb.Model is null then product_hierarchy else bb.Model end  product_hierarchy_general, 
-			case 
-				when bb.Series_Rating is null and bb.Model is not null then model 
-				when bb.Series_Rating is null and bb.Model is null then product_hierarchy else bb.Series_Rating end product_hierarchy_detail,
-			aa.description 
-		from 
-		[LS_BI_PROD].EDW_DIMENSION.CRM.DIM_PRODUCT_MATERIAL mm 
-		left join [LS_BI_PROD].EDW_ANALYTICS.CRM.dim_opp_product_material aa 
-		on (case when isnumeric(mm.product_material_code)=1 then cast(CAST(mm.product_material_code as int) as nvarchar)  else mm.product_material_code end = case when isnumeric(aa.product_material_code)=1 then cast(CAST(aa.product_material_code as int) as nvarchar)  else aa.product_material_code end)
-		left join [LS_BI_PROD].[EDW_ANALYTICS].[ECC].[dim_material_prod_hie] bb on aa.product_hierarchy = bb.Model or aa.product_hierarchy = bb.Series_Rating
-		where LEFT(product_hierarchy,2) in ('M1', 'E1', 'F1') and mm.product_model is not null
-	) cc where Row# =1
-) dpm on CAST(b.MATNR AS INT) = CAST (dpm.PRODUCT_MATERIAL_CODE AS INT)
+left join productgroupmapping dpm on CAST(b.MATNR AS INT) = CAST (dpm.PRODUCT_MATERIAL_CODE AS INT)
 where a.SCORE_ERROR = 'N' and a.SALE_TYPE in (3,5) and b.release_apprv = 'X'
 --and format(a.SCORE_DATE,'yyyyMM') in (format(DATEADD(MONTH, -1, CURRENT_TIMESTAMP),'yyyyMM'), format(CURRENT_TIMESTAMP,'yyyyMM'))
 union
@@ -285,13 +240,12 @@ left join (
 ) dpm on CAST(b.MATNR AS INT) = CAST (dpm.PRODUCT_MATERIAL_CODE AS INT)
 where a.SCORE_ERROR = 'N' and a.SALE_TYPE in (3,5) and b.release_apprv = 'X'
 ) as st3
-LEFT JOIN forecaseDaily AS f ON st3.VBELN_VA = f.SOID AND st3.POSNR_VA = f.SOItemNo
 --LEFT JOIN EDW_ANALYTICS.dbo.dim_productgroupmapping dpgm on dpgm.Model = st3.product_model
 LEFT JOIN EDW_ANALYTICS.dbo.dim_area_store das ON das.sales_code = st3.sales_code
 
 where 1=1 
-and FORMAT(st3.SCORE_DATE, 'yyyy-MM') = '2021-11'
---and FORMAT(st3.SCORE_DATE, 'yyyy-MM') = FORMAT(CURRENT_TIMESTAMP, 'yyyy-MM')
+and FORMAT(st3.SCORE_DATE, 'yyyy') = FORMAT(CURRENT_TIMESTAMP, 'yyyy')
+--and FORMAT(st3.SCORE_DATE, 'yyyyMM') = FORMAT(CURRENT_TIMESTAMP, 'yyyyMM')
 
 ) a left join EDW_ANALYTICS.dbo.dim_area_store das on das.sales_code = a.sales_off_code
 
