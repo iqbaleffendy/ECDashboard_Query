@@ -1,3 +1,6 @@
+--delete from dbo.invoicedatanew where format(MTD,'yyyyMM') in (format(DATEADD(MONTH, -1, CURRENT_TIMESTAMP),'yyyyMM'), format(CURRENT_TIMESTAMP,'yyyyMM'))
+
+--CTE Forecast Daily
 with forecaseDaily as(
 select
     oppt.LEAD_ID LeadID,
@@ -117,8 +120,8 @@ left join [LS_BI_PROD].EDW_ANALYTICS.crm.dim_price_scenario ps on oppt.price_sce
 left join (select * from [LS_BI_PROD].EDW_ANALYTICS.CRM.dim_opp_product_material where product_material_code not in ('N/A', 'Unknown') and left(product_hierarchy, 2) in ('M1','E1','F1')) dpmm on CAST(dpm.PRODUCT_MATERIAL_CODE AS INT) = CAST (dpmm.PRODUCT_MATERIAL_CODE AS INT)
 where
             optp.OPPORTUNITY_TYPE_DESCRIPTION not in ('N/A', 'Unknown', 'LEAD')
-            --tambahkan bulan
             and format(CONVERT(date, CAST(oppt.DELIVERY_DATE_KEY AS varchar)),'yyyy')=format(CURRENT_TIMESTAMP,'yyyy')
+			--and format(CONVERT(date, CAST(oppt.DELIVERY_DATE_KEY AS varchar)),'yyyyMM') in (format(DATEADD(MONTH, -1, CURRENT_TIMESTAMP),'yyyyMM'), format(CURRENT_TIMESTAMP,'yyyyMM'))
             and dpm.Category_ID in ('M1','E1','F1')
             and ( opst.[DESCRIPTION] like '%stage 3%' or
             opst.[DESCRIPTION] like '%stage 4%' or
@@ -128,7 +131,9 @@ where
             opst.[DESCRIPTION] like '%delivered%' or
             opst.[DESCRIPTION] NOT in('N/A','NO DEAL (CANCEL)','LOST') )
             
-),invoice as (
+)
+--CTE Order Tracking Daily
+,invoice as (
 select 
 		cast(VBELN_VBAP as int) SalesDocument, 
 		POSNR_VBAP SalesDocumentItem,
@@ -234,9 +239,12 @@ select
 		left join [LS_BI_PROD].EDW_STG_SAP_ECC_DAILY.dbo.ZLDB_V_SO_OPPTY po on cast(VBELN_VBAP as int) = po.SO_NUMBER and POSNR_VBAP = po.SO_ITEM
 		left join (select DISTINCT cic_group_id,cic_group from ls_bi_prod.EDW_DIMENSION.CRM.Dim_CIC) cic on cic.cic_group_id = b.brsch
 		left join (select * from [LS_BI_PROD].EDW_ANALYTICS.CRM.dim_opp_product_material where product_material_code not in ('N/A', 'Unknown') and left(product_hierarchy, 2) in ('M1','E1','F1')) dpm on CAST(a.MATNR_VBAP AS INT) = CAST (dpm.PRODUCT_MATERIAL_CODE AS INT)
-		where format(a.DELDATE,'yyyy') between (format(CURRENT_TIMESTAMP,'yyyy') - 1) and (format(CURRENT_TIMESTAMP,'yyyy') + 1)
-),
-logscore as (
+		where 1=1
+		and format(a.DELDATE,'yyyy') between (format(CURRENT_TIMESTAMP,'yyyy') - 1) and (format(CURRENT_TIMESTAMP,'yyyy') + 1)
+		--and format(a.DELDATE,'yyyyMM') in (format(DATEADD(MONTH, -1, CURRENT_TIMESTAMP),'yyyyMM'), format(CURRENT_TIMESTAMP,'yyyyMM'))
+)
+--CTE Logscore
+,logscore as (
 select 
 	b.sernr,
 	b.CUST_NAME,
@@ -257,10 +265,11 @@ on b.SERNR = ScoreLog.PRIME_PRODUCT_SERIAL_NUMBER
 where 1=1 
 --left(b.MFRPN, 2) in ('M1')
 -- and FORMAT(b.billing_date, 'yyyy-MM') = '2021-08'  
-and FORMAT (b.billing_date, 'yyyy') >= '2021'  
+and FORMAT (b.billing_date, 'yyyy') >= format(CURRENT_TIMESTAMP, 'yyyy')  
 and ScoreLog.SALE_TYPE  in (1,3,5) 
 --and ScoreLog.SCORE_ERROR = 'N'
 )
+--CTE Order Tracking ST3/ST5
 ,st3 as (
 select 
 	a.SALE_TYPE, 
@@ -279,6 +288,7 @@ on b.vkbur = c.sales_code
 left join (select * from [LS_BI_PROD].EDW_ANALYTICS.CRM.dim_opp_product_material where product_material_code not in ('N/A', 'Unknown') and left(product_hierarchy, 2) in ('M1','E1','F1')) dpm
 on CAST(b.MATNR AS INT) = CAST (dpm.PRODUCT_MATERIAL_CODE AS INT)
 where a.SCORE_ERROR = 'N' and a.SALE_TYPE in (3,5) and b.release_apprv = 'X'
+--and format(a.SCORE_DATE,'yyyyMM') in (format(DATEADD(MONTH, -1, CURRENT_TIMESTAMP),'yyyyMM'), format(CURRENT_TIMESTAMP,'yyyyMM'))
 union
 select 
 	a.SALE_TYPE, 
@@ -297,14 +307,13 @@ on b.vkbur = c.sales_code
 left join (select * from [LS_BI_PROD].EDW_ANALYTICS.CRM.dim_opp_product_material where product_material_code not in ('N/A', 'Unknown') and left(product_hierarchy, 2) in ('M1','E1','F1')) dpm
 on CAST(b.MATNR AS INT) = CAST (dpm.PRODUCT_MATERIAL_CODE AS INT)
 where a.SCORE_ERROR = 'N' and a.SALE_TYPE in (3,5) and b.release_apprv = 'X'
+--and format(a.SCORE_DATE,'yyyyMM') in (format(DATEADD(MONTH, -1, CURRENT_TIMESTAMP),'yyyyMM'), format(CURRENT_TIMESTAMP,'yyyyMM'))
 )
-
-select b.*, case when c.OpportunityID is not null then 'Yes' else 'No' end as isForecast 
---into EDW_ANALYTICS.dbo.invoiceDataNew
-from (
-
+--CTE for Invoiced PP
+,invoiced as (
 select 
 	distinct a.*,
+	das.area_name,
 	case when das.area_name like '%MA' Then 'Major Account' else 'Retail Account' end Customer_Type,
 	case 
 		when das.area_name like '%MA' Then CICGroups 
@@ -314,8 +323,8 @@ select
 		else market_sector end 
 	end MarketSector
 	,0 rate
-	,ROW_NUMBER() OVER(PARTITION BY format(MTD, 'yyyy'),format(MTD, 'MM'), accountID, producthierarchy ORDER BY format(MTD, 'yyyy') ASC,format(MTD, 'MM') ASC, accountID ASC, producthierarchy ASC, billingdocument desc) AS Row#
 from (
+select distinct * from (
 select 
 	i.*,
 	i.BillingDate as MTD,
@@ -387,9 +396,25 @@ and (ls.hitung=1 or left(MaterialNumber, 2) in ('E1','F1'))
 --and confidence_level>=75
 --and forecast ='YES'
 --and (f.so_id is null or f.so_id=0)
-
-union
-
+) abc
+) a 
+left join EDW_ANALYTICS.dbo.dim_area_store das on das.sales_code = a.sales_off_code
+)
+--CTE for Progress Data PP
+,pp_progress as (
+select 
+	distinct a.*,
+	das.area_name,
+	case when das.area_name like '%MA' Then 'Major Account' else 'Retail Account' end Customer_Type,
+	case 
+		when das.area_name like '%MA' Then CICGroups 
+	else 
+		case 
+			when (market_sector is null or market_sector='') then CICGroups 
+		else market_sector end 
+	end MarketSector
+	,0 rate
+from (
 select 
 	i.*,
 	f.deliverydate as MTD,
@@ -451,10 +476,24 @@ and f.confidencelevel>=75
 and f.Category_ID in ('M1','E1','F1')
 and f.forecast ='YES'
 and (i.salesdocument is null or i.billingDocument is null)
-
---start modification
-UNION
-
+) a 
+left join EDW_ANALYTICS.dbo.dim_area_store das on das.sales_code = a.sales_off_code
+)
+--CTE for Invoiced ST3/ST5
+,st3_invoiced as (
+select 
+	distinct a.*,
+	das.area_name,
+	case when das.area_name like '%MA' Then 'Major Account' else 'Retail Account' end Customer_Type,
+	case 
+		when das.area_name like '%MA' Then CICGroups 
+	else 
+		case 
+			when (market_sector is null or market_sector='') then CICGroups 
+		else market_sector end 
+	end MarketSector
+	,0 rate
+from (
 SELECT
 	CASE
 		WHEN st3.VBELN_VA IS NULL THEN 333555
@@ -610,17 +649,31 @@ SELECT
 FROM st3
 LEFT JOIN forecaseDaily AS f ON st3.VBELN_VA = f.SOID AND st3.POSNR_VA = f.SOItemNo
 --LEFT JOIN EDW_ANALYTICS.dbo.forecast AS c ON c.OpportunityID = f.OpportunityID AND c.OpportunityItemNo = f.OpportunityItemNo
-LEFT JOIN EDW_ANALYTICS.dbo.dim_area_store das ON das.sales_code = f.SalesOffice
+LEFT JOIN EDW_ANALYTICS.dbo.dim_area_store das ON das.sales_code = st3.sales_code
 
 WHERE 1=1
 --AND f.opportunityType IN ('Opp  Rental')
 --AND f.Category_ID in ('M1','E1','F1')
 --and format(st3.SCORE_DATE,'yyyyMM') =format(CURRENT_TIMESTAMP,'yyyyMM')
-
 AND st3.BAST_NO IS NOT NULL AND st3.BAST_NO <> ''
-
-UNION
-
+) a 
+left join EDW_ANALYTICS.dbo.dim_area_store das on das.sales_code = a.sales_off_code
+)
+--CTE for ST3/ST5 Progress Data
+,st3_progress as (
+select 
+	distinct a.*,
+	das.area_name,
+	case when das.area_name like '%MA' Then 'Major Account' else 'Retail Account' end Customer_Type,
+	case 
+		when das.area_name like '%MA' Then CICGroups 
+	else 
+		case 
+			when (market_sector is null or market_sector='') then CICGroups 
+		else market_sector end 
+	end MarketSector
+	,0 rate
+from (
 SELECT
 	CASE
 		WHEN st3.VBELN_VA IS NULL THEN 333555
@@ -788,11 +841,24 @@ AND f.Category_ID in ('M1','E1','F1')
 AND f.forecast ='YES'
 and format(st3.SCORE_DATE,'yyyyMM') =format(CURRENT_TIMESTAMP,'yyyyMM')
 AND (st3.BAST_NO IS NULL OR st3.BAST_NO = '')
---end modification
-
---locked forecast join invoice
-UNION
-
+) a 
+left join EDW_ANALYTICS.dbo.dim_area_store das on das.sales_code = a.sales_off_code
+)
+--CTE for checking left data
+,locked_forecast_progress as (
+select 
+	distinct a.*,
+	das.area_name,
+	case when das.area_name like '%MA' Then 'Major Account' else 'Retail Account' end Customer_Type,
+	case 
+		when das.area_name like '%MA' Then CICGroups 
+	else 
+		case 
+			when (market_sector is null or market_sector='') then CICGroups 
+		else market_sector end 
+	end MarketSector
+	,0 rate
+from (
 select
 	i.*,
 	c.deliverydate as MTD,
@@ -846,79 +912,151 @@ and c.OpportunityID not in
 	(
 		--subquery previous union (1,2,3,4)
 		select OpportunityID
-		from
-		(
-		select f.OpportunityID
-		from invoice i 
-		left join forecaseDaily f on i.salesDocument = f.SOID and i.salesdocumentItem = f.SOItemNo  
-		--left join EDW_ANALYTICS.dbo.forecast c on c.OpportunityID = f.OpportunityID and c.OpportunityItemNo = f.OpportunityItemNo
-		left join EDW_ANALYTICS.dbo.dim_area_sales d on i.SalesmanID  = d.sales_id
-		--left join EDW_ANALYTICS.dbo.dim_area_store das on d.sales_code = das.sales_code
-		left join EDW_ANALYTICS.dbo.dim_company_map dcm on dcm.CompanyName = i.Payername
-		left join logscore ls on ls.sernr = i.serialnumber and ls.billing_date = i.billingdate
-
-		where 1=1
-		--and opportunityType in ('Opp  Machine','Opp  Engine','Opp  ForkLift')
-		--and format(i.BillingDate,'yyyyMM') = '202108'
-		and format(i.BillingDate,'yyyy') =format(CURRENT_TIMESTAMP,'yyyy')
-		and left(MaterialNumber, 2) in ('M1','E1','F1')
-		and (ls.hitung=1 or left(MaterialNumber, 2) in ('E1','F1'))
-		--and BillingDocument is not null
-		--and i.serialNumber ='YJW10239'
-		--and pbill.qty_inv <=1
-		--and pbill.
-		--and confidence_level>=75
-		--and forecast ='YES'
-		--and (f.so_id is null or f.so_id=0)
+		from (
+		select OpportunityID from invoiced
 		union
-		select f.OpportunityID
-		from forecaseDaily f 
-		left join invoice i on i.salesDocument =f.SOID and i.salesdocumentItem = f.SOItemNo 
-		--left join EDW_ANALYTICS.dbo.forecast c on c.OpportunityID = f.OpportunityID and c.OpportunityItemNo = f.OpportunityItemNo 
-		left join EDW_ANALYTICS.dbo.dim_area_store das on das.sales_code = f.SalesOffice
-		left join EDW_ANALYTICS.dbo.dim_company_map dcm on dcm.CompanyName = f.accountname
-
-		where 1=1
-		and f.opportunityType in ('Opp  Machine','Opp  Engine','Opp  ForkLift')
-		--and format(f.deliverydate,'yyyy') = '2021'
-		and f.confidencelevel>=75
-		and f.Category_ID in ('M1','E1','F1')
-		and f.forecast ='YES'
-		and (i.salesdocument is null or i.billingDocument is null)
-		--start modification
+		select OpportunityID from pp_progress
 		UNION
-		SELECT f.OpportunityID
-		FROM st3
-		LEFT JOIN forecaseDaily AS f ON st3.VBELN_VA = f.SOID AND st3.POSNR_VA = f.SOItemNo
-		--LEFT JOIN EDW_ANALYTICS.dbo.forecast AS c ON c.OpportunityID = f.OpportunityID AND c.OpportunityItemNo = f.OpportunityItemNo
-		LEFT JOIN EDW_ANALYTICS.dbo.dim_area_store das ON das.sales_code = f.SalesOffice
-
-		WHERE 1=1
-		--AND f.opportunityType IN ('Opp  Rental')
-		--AND f.Category_ID in ('M1','E1','F1')
-		--and format(st3.SCORE_DATE,'yyyyMM') =format(CURRENT_TIMESTAMP,'yyyyMM')
-
-		AND st3.BAST_NO IS NOT NULL AND st3.BAST_NO <> ''
+		SELECT OpportunityID FROM st3_invoiced
 		UNION
-		SELECT f.OpportunityID
-		FROM forecaseDaily AS f
-		LEFT JOIN st3 ON st3.VBELN_VA = f.SOID AND st3.POSNR_VA = f.SOItemNo
-		--LEFT JOIN EDW_ANALYTICS.dbo.forecast AS c ON c.OpportunityID = f.OpportunityID AND c.OpportunityItemNo = f.OpportunityItemNo
-		LEFT JOIN EDW_ANALYTICS.dbo.dim_area_store das ON das.sales_code = f.SalesOffice
-		WHERE 1=1
-		AND f.opportunityType IN ('Opp  Rental')
-		AND f.sales_type in ('ST3','ST5')
-		AND f.confidencelevel >= 75
-		AND f.Category_ID in ('M1','E1','F1')
-		AND f.forecast ='YES'
-		AND (st3.BAST_NO IS NULL OR st3.BAST_NO = '')
+		SELECT OpportunityID FROM st3_progress
 		) as filtertabletemporary
 	)
 ) a 
 left join EDW_ANALYTICS.dbo.dim_area_store das on das.sales_code = a.sales_off_code
+)
+--CTE Invoiced PP that mapped as forecasted
+,invoiced_forecasted as (
+select b.*, case when c.OpportunityID is not null then 'Yes' else 'No' end as isForecast 
+from (
+
+select 
+	a.*
+	,ROW_NUMBER() OVER(PARTITION BY format(MTD, 'yyyy'),format(MTD, 'MM'), accountID, producthierarchy ORDER BY format(MTD, 'yyyy') ASC,format(MTD, 'MM') ASC, accountID ASC, producthierarchy ASC, billingdocument desc) AS Row#
+from invoiced a 
+
+) b
+left join 
+(select *, 
+ROW_NUMBER() OVER(PARTITION BY format(DeliveryDate, 'yyyy') ,format(DeliveryDate, 'MM'),accountID, producthierarchy ORDER BY format(DeliveryDate, 'yyyy') ASC,format(DeliveryDate, 'MM') ASC,accountID ASC, producthierarchy ASC) AS Row#
+from EDW_ANALYTICS.dbo.forecast where AccountName <> 'TBA') as c 
+on b.AccountID = c.AccountID and b.ProductHierarchy = c.ProductHierarchy and format(b.MTD, 'yyyy') = format(c.DeliveryDate, 'yyyy') and format(b.MTD, 'MM') = format(c.DeliveryDate, 'MM')and b.Row# = c.Row#
+where c.OpportunityID is not null
+)
+,st3_invoiced_forecasted as (
+select b.*, case when c.OpportunityID is not null then 'Yes' else 'No' end as isForecast 
+from (
+
+select 
+	a.*
+	,ROW_NUMBER() OVER(PARTITION BY format(MTD, 'yyyy'),format(MTD, 'MM'), accountID, producthierarchy ORDER BY format(MTD, 'yyyy') ASC,format(MTD, 'MM') ASC, accountID ASC, producthierarchy ASC, billingdocument desc) AS Row#
+from st3_invoiced a 
+
+) b
+left join 
+(select *, 
+ROW_NUMBER() OVER(PARTITION BY format(DeliveryDate, 'yyyy') ,format(DeliveryDate, 'MM'),accountID, producthierarchy ORDER BY format(DeliveryDate, 'yyyy') ASC,format(DeliveryDate, 'MM') ASC,accountID ASC, producthierarchy ASC) AS Row#
+from EDW_ANALYTICS.dbo.forecast where AccountName <> 'TBA') as c 
+on b.AccountID = c.AccountID and b.ProductHierarchy = c.ProductHierarchy and format(b.MTD, 'yyyy') = format(c.DeliveryDate, 'yyyy') and format(b.MTD, 'MM') = format(c.DeliveryDate, 'MM')and b.Row# = c.Row#
+where c.OpportunityID is not null
+)
+,tba_used as (
+select c.OpportunityID
+from (
+	select 
+		a.*
+		,ROW_NUMBER() OVER(PARTITION BY format(a.MTD, 'yyyy'),format(a.MTD, 'MM'),a.producthierarchy, a.area_name ORDER BY format(a.MTD, 'yyyy') ASC,format(a.MTD, 'MM') ASC,a.producthierarchy ASC, a.area_name ASC, a.billingdocument desc) AS Row#
+	from invoiced a 
+	left join invoiced_forecasted invd on a.SalesDocument = invd.SalesDocument and a.SalesDocumentItem = invd.SalesDocumentItem
+	where invd.SalesDocument is null
+	) b
+left join 
+(select c1.*, c2.area_name, 
+ROW_NUMBER() OVER(PARTITION BY format(c1.DeliveryDate, 'yyyy') ,format(c1.DeliveryDate, 'MM'),c1.producthierarchy, c2.area_name ORDER BY format(c1.DeliveryDate, 'yyyy') ASC,format(c1.DeliveryDate, 'MM') ASC, c1.producthierarchy ASC, c2.area_name ASC) AS Row#
+from EDW_ANALYTICS.dbo.forecast c1 left join EDW_ANALYTICS.dbo.dim_area_store c2 on c1.sales_off_code = c2.sales_code where AccountName = 'TBA') as c 
+on b.ProductHierarchy = c.ProductHierarchy and b.area_name = c.area_name and format(b.MTD, 'yyyy') = format(c.DeliveryDate, 'yyyy') and format(b.MTD, 'MM') = format(c.DeliveryDate, 'MM') and b.Row# = c.Row#
+where c.OpportunityID is not null
+)
+
+-----------------------------------------------------------------------------
+
+--insert into EDW_ANALYTICS.dbo.invoiceDataNew
+select * 
+--into EDW_ANALYTICS.dbo.invoiceDataNew
+from (
+
+--PP Invoiced Forecasted
+select * from invoiced_forecasted
+
+--PP Invoiced Push Sales
+union
+select b.*, case when c.OpportunityID is not null then 'Yes' else 'No' end as isForecast 
+from (
+	select 
+		a.*
+		,ROW_NUMBER() OVER(PARTITION BY format(a.MTD, 'yyyy'),format(a.MTD, 'MM'),a.producthierarchy, a.area_name ORDER BY format(a.MTD, 'yyyy') ASC,format(a.MTD, 'MM') ASC,a.producthierarchy ASC, a.area_name ASC, a.billingdocument desc) AS Row#
+	from invoiced a 
+	left join invoiced_forecasted invd on a.SalesDocument = invd.SalesDocument and a.SalesDocumentItem = invd.SalesDocumentItem
+	where invd.SalesDocument is null
+	) b
+left join 
+(select c1.*, c2.area_name, 
+ROW_NUMBER() OVER(PARTITION BY format(c1.DeliveryDate, 'yyyy') ,format(c1.DeliveryDate, 'MM'),c1.producthierarchy, c2.area_name ORDER BY format(c1.DeliveryDate, 'yyyy') ASC,format(c1.DeliveryDate, 'MM') ASC, c1.producthierarchy ASC, c2.area_name ASC) AS Row#
+from EDW_ANALYTICS.dbo.forecast c1 
+left join EDW_ANALYTICS.dbo.dim_area_store c2 on c1.sales_off_code = c2.sales_code 
+where AccountName = 'TBA') as c 
+on b.ProductHierarchy = c.ProductHierarchy and b.area_name = c.area_name and format(b.MTD, 'yyyy') = format(c.DeliveryDate, 'yyyy') and format(b.MTD, 'MM') = format(c.DeliveryDate, 'MM')and b.Row# = c.Row#
+
+--ST3 Invoiced (BAST)
+union
+select * from st3_invoiced_forecasted
+
+--ST3 Push Sales
+union
+select b.*, case when c.OpportunityID is not null then 'Yes' else 'No' end as isForecast 
+from (
+	select 
+		a.*
+		,ROW_NUMBER() OVER(PARTITION BY format(a.MTD, 'yyyy'),format(a.MTD, 'MM'),a.producthierarchy, a.area_name ORDER BY format(a.MTD, 'yyyy') ASC,format(a.MTD, 'MM') ASC,a.producthierarchy ASC, a.area_name ASC, a.billingdocument desc) AS Row#
+	from st3_invoiced a 
+	left join st3_invoiced_forecasted invd on a.SalesDocument = invd.SalesDocument and a.SalesDocumentItem = invd.SalesDocumentItem
+	where invd.SalesDocument is null
+	) b
+left join 
+(select c1.*, c2.area_name, 
+ROW_NUMBER() OVER(PARTITION BY format(c1.DeliveryDate, 'yyyy') ,format(c1.DeliveryDate, 'MM'),c1.producthierarchy, c2.area_name ORDER BY format(c1.DeliveryDate, 'yyyy') ASC,format(c1.DeliveryDate, 'MM') ASC, c1.producthierarchy ASC, c2.area_name ASC) AS Row#
+from EDW_ANALYTICS.dbo.forecast c1 
+left join EDW_ANALYTICS.dbo.dim_area_store c2 on c1.sales_off_code = c2.sales_code 
+left join tba_used c3 on c1.OpportunityID = c3.OpportunityID 
+where AccountName = 'TBA'
+and c3.OpportunityID is null) as c 
+on b.ProductHierarchy = c.ProductHierarchy and b.area_name = c.area_name and format(b.MTD, 'yyyy') = format(c.DeliveryDate, 'yyyy') and format(b.MTD, 'MM') = format(c.DeliveryDate, 'MM')and b.Row# = c.Row#
+
+--Mapping Forecasted/Unforecasted Progress
+union
+select b.*, case when c.OpportunityID is not null then 'Yes' else 'No' end as isForecast 
+from (
+select
+	a.*
+	,ROW_NUMBER() OVER(PARTITION BY format(MTD, 'yyyy'),format(MTD, 'MM'), accountID, producthierarchy ORDER BY format(MTD, 'yyyy') ASC,format(MTD, 'MM') ASC, accountID ASC, producthierarchy ASC, billingdocument desc) AS Row#
+from (
+	select * from pp_progress
+	UNION
+	select * from st3_progress
+	UNION
+	select * from locked_forecast_progress
+	) a
 ) b
 left join 
 (select *, 
 ROW_NUMBER() OVER(PARTITION BY format(DeliveryDate, 'yyyy') ,format(DeliveryDate, 'MM'),accountID, producthierarchy ORDER BY format(DeliveryDate, 'yyyy') ASC,format(DeliveryDate, 'MM') ASC,accountID ASC, producthierarchy ASC) AS Row#
 from EDW_ANALYTICS.dbo.forecast) as c 
-on b.AccountID = c.AccountID and b.ProductHierarchy = c.ProductHierarchy and format(b.MTD, 'yyyy') = format(c.DeliveryDate, 'yyyy') and format(b.MTD, 'MM') = format(c.DeliveryDate, 'MM')and b.Row# = c.Row#;
+on b.AccountID = c.AccountID and b.ProductHierarchy = c.ProductHierarchy and format(b.MTD, 'yyyy') = format(c.DeliveryDate, 'yyyy') and format(b.MTD, 'MM') = format(c.DeliveryDate, 'MM')and b.Row# = c.Row#
+
+
+) test
+--where month(MTD) = 9 and year(MTD) = 2021
+--and BillingDocument is not null
+--and MaterialType = 'MACHINE'
+--and isForecast = 'Yes'
+;
