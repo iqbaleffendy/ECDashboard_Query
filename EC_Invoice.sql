@@ -1,103 +1,91 @@
 --delete from EDW_ANALYTICS.dbo.invoiceDataNew where format(MTD,'yyyy') = format(CURRENT_TIMESTAMP, 'yyyy');
 --delete from EDW_ANALYTICS.dbo.invoiceDataNew where format(MTD,'yyyyMM') = format(CURRENT_TIMESTAMP, 'yyyyMM');
---delete from EDW_ANALYTICS.dbo.invoiceDataNew where format(MTD,'yyyyMM') = '202110';
-drop table EDW_ANALYTICS.dbo.invoiceDataNew_testing;
+--delete from EDW_ANALYTICS.dbo.invoiceDataNew where format(MTD,'yyyyMM') = '202111';
 
 --CTE Forecast Daily
 with forecaseDaily as(
-select
-    oppt.LEAD_ID LeadID,
-    oppt.OPPORTUNITY_ID OpportunityID,
-    oppt.ITEM_NO OpportunityItemNo,
-    oppt.QUOTATION_ID QuotationID,
-    oppt.ITEM_NO_QUOTATION QuotationItemNo,
-    oppt.SO_ID SOID,
-    oppt.ITEM_NO_SO SOItemNo,
-    CONVERT(date, CAST(oppt.LEAD_DATE_KEY AS varchar)) as LeadCreatedDate,
+select 
+	oppt.LEAD_ID LeadID, 
+	oppt.OPPORTUNITY_ID OpportunityID, 
+	oppt.ITEM_NO OpportunityItemNo,
+	oppt.QUOTATION_ID QuotationID,
+	oppt.ITEM_NO_QUOTATION QuotationItemNo,
+	oppt.SO_ID SOID,
+	oppt.ITEM_NO_SO SOItemNo,
+    CONVERT(date, CAST(oppt.LEAD_DATE_KEY AS varchar)) as LeadCreatedDate, 
     CONVERT(date, CAST(oppt.LEAD_CHANGED_DATE_KEY AS varchar)) as LeadChangedDate,
-    slo.[DESCRIPTION] as SourceofLead,
+	slo.[DESCRIPTION] as SourceofLead,
     CONVERT(date, CAST(oppt.OPP_DATE_KEY AS varchar)) as OppIDCreatedDate,
     CONVERT(date, CAST(oppt.OPP_CHANGED_DATE_KEY AS varchar)) as OppIDChangedDate,
     CONVERT(date, CAST(oppt.OPP_ITEM_DATE_KEY AS varchar)) as OppItemCreatedDate,
     CONVERT(date, CAST(oppt.OPP_ITEM_CHANGED_DATE_KEY AS varchar)) as OppItemChangedDate,
-    CONVERT(date, CAST(oppt.QUOT_CREATED_DATE_KEY AS varchar)) as QuotationIDCreatedDate,
+	CONVERT(date, CAST(oppt.QUOT_CREATED_DATE_KEY AS varchar)) as QuotationIDCreatedDate, 
     CONVERT(date, CAST(oppt.QUOT_CHANGED_DATE_KEY AS varchar)) as QuotationIDChangedDate,
-    CONVERT(date, CAST(oppt.QUOT_ITEM_CREATED_DATE_KEY AS varchar)) as QuotationItemCreatedDate,
+    CONVERT(date, CAST(oppt.QUOT_ITEM_CREATED_DATE_KEY AS varchar)) as QuotationItemCreatedDate, 
     CONVERT(date, CAST(oppt.QUOT_ITEM_CHANGED_DATE_KEY AS varchar)) as QuotationItemChangedDate,
-    CONVERT(date, CAST(oppt.SO_CREATED_DATE_KEY AS varchar)) as SOIDCreatedDate,
+	CONVERT(date, CAST(oppt.SO_CREATED_DATE_KEY AS varchar)) as SOIDCreatedDate,
     CONVERT(date, CAST(oppt.BILLING_CREATED_DATE AS varchar)) as BillingIDCreatedDate,
-    oppt.TRANSACTION_DESC TransactionDescription,
-    dc.CUSTOMER_KEY Account_Key,
-    dc.CUSTOMER_CODE as AccountID ,
-    dc.FULL_NAME as AccountName,
-    cic.cic_key,
-    cic.CIC_Group CICGroup,
-    cic.CIC_Description CICDescription,
-    dsl.store_abbrevation_name sales_off_code,
-    dsl.AREA_NAME AS SalesOfficeArea,
-    dsl.sub_company_name,
-    dsl.STORE_ABBREVATION_NAME AS SalesOffice,
-    oppt.sales_person_key,
-    case when dse.occupation_code = 'SE' then dse.FULL_NAME else dsp.FULL_NAME end as SalesRepsName,
-    case when dse.occupation_code = 'SE' then oppt.SALES_EXECUTIVE_KEY else oppt.SALES_PERSON_KEY end as SalesExecutiveName,
-    oppt.USER_STATUS_KEY opp_status_key,
-    opst.[DESCRIPTION] as OpportunityStatus,
+	oppt.TRANSACTION_DESC TransactionDescription,
+	oppt.customer_key,
+	dc.CUSTOMER_CODE as AccountID,
+	dc.FULL_NAME as AccountName,
+	cic.CIC_Group CICGroup,
+	cic.CIC_Description CICDescription,
+	dsl.AREA_NAME AS SalesOfficeArea,
+	dsl.STORE_ABBREVATION_NAME + ' - ' + dsl.STORE_NAME as SALES_OFFICE,
+	dsl.store_abbrevation_name sales_off_code,
+	dsl.STORE_ABBREVATION_NAME AS SalesOffice,
+	dsl.COMPANY_NAME,
+	dsl.SUB_COMPANY_NAME,
+	dsl.REGION_NAME,
+	case when dse.occupation_code = 'SE' then 
+	dse.FULL_NAME else 
+	dsp.FULL_NAME end as SalesRepsName,
+		case when dse.occupation_code = 'SE' then oppt.SALES_EXECUTIVE_KEY else oppt.SALES_PERSON_KEY end as SALES_KEY, 
+	case when dse.occupation_code = 'SE' then 
+	dse.OCCUPATION_CODE else 
+	dsp.OCCUPATION_CODE end as OccupationCode,
+	opst.[DESCRIPTION] as OpportunityStatus,
     CONVERT(date, CAST(oppt.OPPORTUNITY_STATUS_DATE_KEY AS varchar)) as OpportunityStatusDate,
-    oppt.QUOTATION_STATUS_KEY quot_status_key,
     dqs.[DESCRIPTION] as QuotationStatus,
-    oppt.SO_STATUS_KEY so_item_status_key,
-    dss.[DESCRIPTION] AS SOItemStatus,
-    oppt.So_rejection_key so_reject_key,
-    drj.Rejection_Reason as SORejectionReason,
-    oppt.OPPORTUNITY_TYPE_KEY opp_type_key,
-    optp.OPPORTUNITY_TYPE_DESCRIPTION as OpportunityType,
-    oppt.product_material_key,
-    dpm.PRODUCT_MATERIAL_CODE ProductID,
-    dpm.PRODUCT_MODEL ProductModel,
-    dpm.[DESCRIPTION] as PoductDescription,
-    dpm.VALID_MATERIAL ValidMaterial,
-    sn.Serial_No SerialNo,
-    sn.Batch_ID BatchID,
-    --pwc,
-    oppt.MARKET_SECTOR_KEY PWC_Key,
-    oppt.MARKET_SECTOR_KEY PWC,
-    dms.[DESCRIPTION] as MarketDescription,
-    oppt.MARKET_SECTOR_KEY as market_sector_key,
-   -- dms.[DESCRIPTION] as MarketSector,
-    case when dms.[INDUSTRY_GROUP] is not null then dms.[INDUSTRY_GROUP] else dms.[INDUSTRY_SEGMENT] end  as MarketSector,
-    '' as SubMarketSector,
-    oppt.POINT_OF_DELIVERY_KEY delivery_key,
-    dpd.[DESCRIPTION] as POINT_OF_DELIVERY_DESC,
+	dss.[DESCRIPTION] AS SOItemStatus,
+	drj.Rejection_Reason as SORejectionReason,
+    optp.OPPORTUNITY_TYPE_DESCRIPTION as OpportunityType, 
+	dpm.PRODUCT_MATERIAL_CODE ProductID,
+	dpm.PRODUCT_MODEL ProductModel,
+	dpm.[DESCRIPTION] as ProductDescription,
+	dpm.VALID_MATERIAL ValidMaterial,
+	sn.Serial_No SerialNo,
+	sn.Batch_ID BatchID,
+	oppt.MARKET_SECTOR_KEY as market_sector_key,
+	dms.MARKET_SECTOR_CODE PWC,
+	dms.[DESCRIPTION] as MarketDescription,
+	dms.INDUSTRY_GROUP,
+	dms.PRODUCT_DIVISION,
+	dms.INDUSTRY_SEGMENT,
+	case when dms.[INDUSTRY_GROUP] is not null then dms.[INDUSTRY_GROUP] else dms.[INDUSTRY_SEGMENT] end as MarketSector,
+	dpd.[DESCRIPTION] as POINT_OF_DELIVERY_DESC,
     CONVERT(date, CAST(oppt.DELIVERY_DATE_KEY AS varchar)) as deliverydate,
-    oppt.NET_VALUE NetValue,
-    oppt.EXPECTED_TOTAL_VALUE ExpectedTotalVaue,
-    oppt.CURRENCY_KEY opp_currency_key,
-    curr.CURRENCY_CODE Currency,
-    oppt.QUOT_NET_VALUE QuotNetValue,
-    oppt.QUOT_CURRENCY_KEY,
-    currq.CURRENCY_CODE as QOUT_CURRENCY_CODE,
-    oppt.CONFIDENCE_LEVEL ConfidenceLevel,
-    dpm.BASIC_SELLING_PRICE_VALID_FROM BasicSellingPriceValidFrom,
-    dpm.BASIC_SELLING_PRICE_VALID_TO BasicSellingPriceValidTo,
-    '' product_hie_key,
-    dpmm.PRODUCT_HIERARCHY,
-    da.Major_Account_Classification MajorAccountClassification,
-    da.Customer_Class_Code CustomerClassCode,
-    dpm.material_category ProductType, 
-    da.INDUSTRY_KEY,
-	da.Vertical_Industry VerticalIndustry,
-    flag.[DESCRIPTION] as FORECAST,
-    'PP' as PP_ST3_ST5,
-    oppt.customer_key,
-    dc.CUSTOMER_CODE CustomerCode,
-    dc.FULL_NAME,
-    oppt.net_value,
-    oppt.net_value NetValueInUSD,
+	oppt.net_value NetValueInUSD,
     oppt.net_value NetValueInIDR,
-    dpm.Category_ID,
-    ps.sales_type,
-    --product hierarky
-    CONVERT(date, CAST(oppt.REPORT_DATE_KEY AS varchar)) as LOAD_DATE
+	oppt.EXPECTED_TOTAL_VALUE ExpectedTotalVaue,
+	curr.CURRENCY_CODE Currency,
+	oppt.QUOT_NET_VALUE QuotNetValue,
+	currq.CURRENCY_CODE as QOUT_CURRENCY_CODE,
+	flag.[DESCRIPTION] as FORECAST,
+	da.Major_Account_Classification MajorAccountClassification,
+	da.Customer_Class_Code CustomerClassCode,
+	da.INDUSTRY_KEY,
+	da.Vertical_Industry VerticalIndustry,
+	oppt.product_material_key,
+    dpm.material_category MaterialType,
+	dpm.Category_ID,
+	oppt.CONFIDENCE_LEVEL ConfidenceLevel, 
+	dpm.BASIC_SELLING_PRICE_VALID_FROM BasicSellingPriceValidFrom,
+	dpm.BASIC_SELLING_PRICE_VALID_TO BasicSellingPriceValidTo,
+	dpmm.product_hierarchy,
+	dps.sales_type,
+	CONVERT(date, CAST(oppt.REPORT_DATE_KEY AS varchar)) as LOAD_DATE
 from
 [LS_BI_PROD].EDW_CRM_ANALYTICS.dbo.FACT_CRM_OPPORTUNITY oppt left join
 [LS_BI_PROD].EDW_DIMENSION.CRM.DIM_OPPORTUNITY_TYPE optp on (oppt.OPPORTUNITY_TYPE_KEY = optp.OPPORTUNITY_TYPE_KEY) left join
@@ -105,34 +93,34 @@ from
 [LS_BI_PROD].EDW_DIMENSION.dbo.DIM_FLAG_YN flag on (oppt.FLAG_FORECAST_KEY = flag.FLAG_YN_KEY) left join
 [LS_BI_PROD].EDW_DIMENSION.CRM.DIM_SALES_PERSON dsp on (oppt.SALES_PERSON_KEY = dsp.SALES_PERSON_KEY) left join
 [LS_BI_PROD].EDW_DIMENSION.CRM.DIM_SALES_PERSON dse on (oppt.SALES_EXECUTIVE_KEY = dse.SALES_PERSON_KEY) left join
-[LS_BI_PROD].EDW_DIMENSION.CRM.DIM_SALES_LOCATION dsl on (dsl.sales_location_code = case when dsp.OCCUPATION_CODE='SE' then dse.sales_location_code else  dsp.sales_location_code end) left join
-[LS_BI_PROD].EDW_DIMENSION.CRM.DIM_PRODUCT_MATERIAL dpm on (oppt.PRODUCT_MATERIAL_KEY = dpm.PRODUCT_MATERIAL_KEY) left join
+[LS_BI_PROD].EDW_DIMENSION.CRM.DIM_SALES_LOCATION dsl on (oppt.SALES_LOCATION_KEY = dsl.SALES_LOCATION_KEY) left join
+(select case when isnumeric(product_material_code)=1 then cast(CAST(product_material_code as int) as nvarchar) else product_material_code end material_code
+, * from [LS_BI_PROD].EDW_DIMENSION.CRM.DIM_PRODUCT_MATERIAL) dpm on (oppt.PRODUCT_MATERIAL_KEY = dpm.PRODUCT_MATERIAL_KEY) left join
 [LS_BI_PROD].EDW_DIMENSION.CRM.DIM_MARKET_SECTOR dms on (oppt.MARKET_SECTOR_KEY = dms.MARKET_SECTOR_KEY) left join
 [LS_BI_PROD].EDW_DIMENSION.CRM.DIM_SO_STATUS dss on (oppt.SO_STATUS_KEY = dss.SO_STATUS_KEY) left join
 [LS_BI_PROD].EDW_DIMENSION.CRM.Dim_Rejection drj on (oppt.SO_REJECTION_KEY = drj.Rejection_key) left join
 [LS_BI_PROD].EDW_DIMENSION.CRM.DIM_POINT_OF_DELIVERY dpd on (oppt.POINT_OF_DELIVERY_KEY = dpd.POINT_OF_DELIVERY_KEY) left join
 [LS_BI_PROD].EDW_DIMENSION.CRM.DIM_QUOTATION_STATUS dqs on (oppt.QUOTATION_STATUS_KEY = dqs.QUOTATION_STATUS_KEY) left join
 [LS_BI_PROD].EDW_DIMENSION.CRM.DIM_CUSTOMER dc on (oppt.CUSTOMER_KEY = dc.CUSTOMER_KEY) left join
-[LS_BI_PROD].EDW_DIMENSION.CRM.Dim_CIC cic on (oppt.CIC_KEY = cic.CIC_KEY) left join
+[LS_BI_PROD].EDW_DIMENSION.CRM.Dim_CIC cic on (oppt.CIC_KEY = cic.CIC_KEY) left join 
 [LS_BI_PROD].EDW_DIMENSION.ECC.Dim_Serial_Equi sn on (oppt.SerialEqui_Key = sn.SerialEqui_Key) left join
 [LS_BI_PROD].EDW_DIMENSION.CRM.DIM_CURRENCY curr on (oppt.CURRENCY_KEY = curr.CURRENCY_KEY) left join
 [LS_BI_PROD].EDW_DIMENSION.CRM.DIM_CURRENCY currq on (oppt.QUOT_CURRENCY_KEY = currq.CURRENCY_KEY) left join
 [LS_BI_PROD].EDW_DIMENSION.CRM.DIM_ORIGIN_LEAD_OPP slo on (oppt.LEAD_ORIGIN_KEY = slo.ORIGIN_OPP_LEAD_KEY) left join
-[LS_BI_PROD].EDW_ANALYTICS.ECC.dim_account da on (case when dc.CUSTOMER_CODE < 0 then dc.CUSTOMER_CODE else RIGHT('00000' + CAST(dc.CUSTOMER_CODE as varchar(10)), 10) end = da.account_id)
-left join [LS_BI_PROD].EDW_ANALYTICS.crm.dim_price_scenario ps on oppt.price_scenario = ps.price_scenario_key
-left join (select * from [LS_BI_PROD].EDW_ANALYTICS.CRM.dim_opp_product_material where product_material_code not in ('N/A', 'Unknown') and left(product_hierarchy, 2) in ('M1','E1','F1')) dpmm on CAST(dpm.PRODUCT_MATERIAL_CODE AS INT) = CAST (dpmm.PRODUCT_MATERIAL_CODE AS INT)
+[LS_BI_PROD].EDW_ANALYTICS.ECC.dim_account da on (case when dc.CUSTOMER_CODE < 0 then dc.CUSTOMER_CODE else RIGHT('00000' + CAST(dc.CUSTOMER_CODE as varchar(10)), 10) end = da.account_id) left join
+[LS_BI_PROD].EDW_ANALYTICS.crm.dim_price_scenario dps on oppt.PRICE_SCENARIO = dps.price_scenario_key
+left join (select case when isnumeric(product_material_code)=1 then cast(CAST(product_material_code as int) as nvarchar)  else product_material_code end material_code
+, * from [LS_BI_PROD].EDW_ANALYTICS.CRM.dim_opp_product_material) dpmm on dpm.material_code = dpmm.material_code
 where
             optp.OPPORTUNITY_TYPE_DESCRIPTION not in ('N/A', 'Unknown', 'LEAD')
-            and format(CONVERT(date, CAST(oppt.DELIVERY_DATE_KEY AS varchar)),'yyyy')=format(CURRENT_TIMESTAMP,'yyyy')
-			--and format(CONVERT(date, CAST(oppt.DELIVERY_DATE_KEY AS varchar)),'yyyyMM') in (format(DATEADD(MONTH, -1, CURRENT_TIMESTAMP),'yyyyMM'), format(CURRENT_TIMESTAMP,'yyyyMM'))
-            and dpm.Category_ID in ('M1','E1','F1')
             and ( opst.[DESCRIPTION] like '%stage 3%' or
             opst.[DESCRIPTION] like '%stage 4%' or
             opst.[DESCRIPTION] like '%stage 5%' or
             opst.[DESCRIPTION] like '%stage 6%' or
             opst.[DESCRIPTION] like '%won%' or
             opst.[DESCRIPTION] like '%delivered%' or
-            opst.[DESCRIPTION] NOT in('N/A','NO DEAL (CANCEL)','LOST') )
+            opst.[DESCRIPTION] like '%lost%')
+			and left(oppt.LEAD_DATE_KEY, 4) = YEAR(GETDATE())
             
 )
 --CTE Order Tracking Daily
@@ -254,8 +242,8 @@ select
 	a.vbrk_fkdat, 
 	b.billing_date, 
 	ScoreLog.SCORE_DATE,
-	case when ScoreLog.SCORE_DATE < DATEFROMPARTS(YEAR(b.BILLING_DATE), MONTH(b.BILLING_DATE)+1, 1) and format(b.billing_date, 'yyyy-MM') <> format(ScoreLog.SCORE_DATE, 'yyyy-MM') and ScoreLog.CUST_NAME_OR_RENT_CUST_NAME = b.CUST_NAME then 0
-		when ScoreLog.SCORE_DATE  < DATEFROMPARTS(YEAR(b.BILLING_DATE), MONTH(b.BILLING_DATE)+1, 1) and format(b.billing_date, 'yyyy-MM') <> format(ScoreLog.SCORE_DATE, 'yyyy-MM') and ScoreLog.CUST_NAME_OR_RENT_CUST_NAME <> b.CUST_NAME then 1
+	case when ScoreLog.SCORE_DATE < DATEADD(DAY,1,EOMONTH(b.Billing_Date)) and format(b.billing_date, 'yyyy-MM') <> format(ScoreLog.SCORE_DATE, 'yyyy-MM') and ScoreLog.CUST_NAME_OR_RENT_CUST_NAME = b.CUST_NAME then 0
+		when ScoreLog.SCORE_DATE  < DATEADD(DAY,1,EOMONTH(b.Billing_Date)) and format(b.billing_date, 'yyyy-MM') <> format(ScoreLog.SCORE_DATE, 'yyyy-MM') and ScoreLog.CUST_NAME_OR_RENT_CUST_NAME <> b.CUST_NAME then 1
 	else 1 end hitung
 
 from [LS_BI_PROD].EDW_STG_SAP_ECC_DAILY.dbo.ZLDB_V_ODRPP_BW a
@@ -372,6 +360,7 @@ select
 					case 
 						when dcm.Flag ='Exception' then '0ZY2'
 						when left(MaterialNumber, 2)='E1' then dcm.Sales_code 
+						else d.sales_code
 					end
 				else  d.sales_code
 			end
@@ -405,17 +394,19 @@ left join EDW_ANALYTICS.dbo.dim_area_sales d on i.SalesmanID  = d.sales_id
 left join EDW_ANALYTICS.dbo.dim_company_map dcm on dcm.CompanyID = CAST(i.SoldToParty as INT)
 left join logscore ls on ls.sernr = i.serialnumber and ls.billing_date = i.billingdate
 left join EDW_ANALYTICS.dbo.dim_customer_group_mapping da on i.SoldToParty = da.Account_ID
+--left join (select SalesDocument, SalesDocumentItem from EDW_ANALYTICS.dbo.invoiceDataNew where format(BillingDate,'yyyyMM') <> format(CURRENT_TIMESTAMP, 'yyyyMM')) ii on i.SalesDocument = ii.SalesDocument and i.SalesDocumentItem = ii.SalesDocumentItem
 
 where 1=1
 --and opportunityType in ('Opp  Machine','Opp  Engine','Opp  ForkLift')
---and format(i.BillingDate,'yyyyMM') = format(CURRENT_TIMESTAMP, 'yyyyMM')
---and format(i.BillingDate,'yyyyMM') = '202110'
-and format(i.BillingDate,'yyyy') = format(CURRENT_TIMESTAMP,'yyyy')
+and format(i.BillingDate,'yyyyMM') = format(CURRENT_TIMESTAMP, 'yyyyMM')
+--and format(i.BillingDate,'yyyyMM') = '202111'
+--and format(i.BillingDate,'yyyy') = format(CURRENT_TIMESTAMP,'yyyy')
 and left(MaterialNumber, 2) in ('M1','E1','F1')
 and (ls.hitung = 1 or left(MaterialNumber, 2) = 'F1' or i.SalesDocumentType <> 'ZEPP' or ls.SCORE_DATE is null)
 --and BillingDocument is not null
 --and confidence_level>=75
 --and forecast ='YES'
+--and ii.SalesDocument is null
 ) abc
 ) a 
 left join EDW_ANALYTICS.dbo.dim_area_store das on das.sales_code = a.sales_off_code
@@ -467,9 +458,9 @@ select
 			case 
 				when dcm.Flag ='Exception' then '0ZY2'
 				when left(MaterialNumber, 2)='E1' and f.sub_company_name ='TUS' then dcm.Sales_code
-				else f.SalesOffice
+				else i.BusinessArea
 			end
-		else f.SalesOffice
+		else i.BusinessArea
 	end sales_off_code,
 	f.sales_off_code Business_Area_Key,
 	CASE 
@@ -496,11 +487,11 @@ left join EDW_ANALYTICS.dbo.dim_customer_group_mapping da on concat('000',cast(f
 
 where 1=1
 and f.opportunityType in ('Opp  Machine','Opp  Engine','Opp  ForkLift')
---and format(f.deliverydate,'yyyyMM') = format(CURRENT_TIMESTAMP, 'yyyyMM')
---and format(f.deliverydate,'yyyyMM') = '202110'
-and format(f.deliverydate,'yyyy') = format(CURRENT_TIMESTAMP, 'yyyy')
+and format(f.deliverydate,'yyyyMM') = format(CURRENT_TIMESTAMP, 'yyyyMM')
+--and format(f.deliverydate,'yyyyMM') = '202111'
+--and format(f.deliverydate,'yyyy') = format(CURRENT_TIMESTAMP, 'yyyy')
 and f.confidencelevel>=75
-and f.Category_ID in ('M1','E1','F1')
+and left(f.product_hierarchy,2) in ('M1','E1','F1')
 and f.forecast ='YES'
 and (i.salesdocument is null or i.billingDocument is null)
 ) a 
@@ -683,9 +674,9 @@ left join EDW_ANALYTICS.dbo.dim_customer_group_mapping da on st3.SOLD = da.Accou
 WHERE 1=1
 --AND f.opportunityType IN ('Opp  Rental')
 --AND f.Category_ID in ('M1','E1','F1')
---and format(st3.SCORE_DATE,'yyyyMM') = format(CURRENT_TIMESTAMP, 'yyyyMM')
---and format(st3.SCORE_DATE,'yyyyMM') = '202110'
-and format(st3.SCORE_DATE,'yyyy') = format(CURRENT_TIMESTAMP, 'yyyy')
+and format(st3.SCORE_DATE,'yyyyMM') = format(CURRENT_TIMESTAMP, 'yyyyMM')
+--and format(st3.SCORE_DATE,'yyyyMM') = '202111'
+--and format(st3.SCORE_DATE,'yyyy') = format(CURRENT_TIMESTAMP, 'yyyy')
 AND st3.BAST_NO IS NOT NULL AND st3.BAST_NO <> ''
 ) a 
 left join EDW_ANALYTICS.dbo.dim_area_store das on das.sales_code = a.sales_off_code
@@ -871,11 +862,11 @@ WHERE 1=1
 AND f.opportunityType IN ('Opp  Rental')
 AND f.sales_type in ('ST3','ST5')
 AND f.confidencelevel >= 75
-AND f.Category_ID in ('M1','E1','F1')
+and left(f.product_hierarchy,2) in ('M1','E1','F1')
 AND f.forecast ='YES'
---and format(f.deliverydate,'yyyyMM') = format(CURRENT_TIMESTAMP, 'yyyyMM')
---and format(f.deliverydate,'yyyyMM') ='202110'
-and format(f.deliverydate,'yyyy') = format(CURRENT_TIMESTAMP, 'yyyy')
+and format(f.deliverydate,'yyyyMM') = format(CURRENT_TIMESTAMP, 'yyyyMM')
+--and format(f.deliverydate,'yyyyMM') ='202111'
+--and format(f.deliverydate,'yyyy') = format(CURRENT_TIMESTAMP, 'yyyy')
 AND (st3.BAST_NO IS NULL OR st3.BAST_NO = '')
 ) a 
 left join EDW_ANALYTICS.dbo.dim_area_store das on das.sales_code = a.sales_off_code
@@ -944,9 +935,9 @@ left join EDW_ANALYTICS.dbo.dim_customer_group_mapping da on concat('000',cast(c
 
 where 1=1
 and c.opportunityType in ('Opp  Machine','Opp  Engine','Opp  ForkLift')
---and format(c.deliverydate,'yyyyMM') = format(CURRENT_TIMESTAMP, 'yyyyMM')
---and format(c.deliverydate,'yyyyMM') = '202110'
-and format(c.deliverydate,'yyyy') = format(CURRENT_TIMESTAMP, 'yyyy')
+and format(c.deliverydate,'yyyyMM') = format(CURRENT_TIMESTAMP, 'yyyyMM')
+--and format(c.deliverydate,'yyyyMM') = '202111'
+--and format(c.deliverydate,'yyyy') = format(CURRENT_TIMESTAMP, 'yyyy')
 and c.confidencelevel>=75
 and c.Category_ID in ('M1','E1','F1')
 and c.forecast ='YES'
@@ -968,6 +959,24 @@ and c.OpportunityID not in
 ) a 
 left join EDW_ANALYTICS.dbo.dim_area_store das on das.sales_code = a.sales_off_code
 )
+--CTE Invoiced PP that mapped as carried over
+,invoiced_carriedover as (
+select b.*, case when c.OpportunityID is not null then 'Carried Over' else 'No' end as isForecast 
+from (
+
+select 
+	a.*
+	,ROW_NUMBER() OVER(PARTITION BY format(a.MTD, 'yyyy'),format(a.MTD, 'MM'), a.accountID, a.producthierarchy ORDER BY format(a.MTD, 'yyyy') ASC,format(a.MTD, 'MM') ASC, a.accountID ASC, a.producthierarchy ASC, a.billingdocument desc) AS Row#
+from invoiced a
+
+) b
+left join 
+(select *, 
+ROW_NUMBER() OVER(PARTITION BY format(DeliveryDate, 'yyyy') ,format(DeliveryDate, 'MM'),accountID, producthierarchy ORDER BY format(DeliveryDate, 'yyyy') ASC,format(DeliveryDate, 'MM') ASC,accountID ASC, producthierarchy ASC) AS Row#
+from EDW_ANALYTICS.dbo.forecast where FORECAST = 'Carried Over') as c 
+on b.AccountID = c.AccountID and b.ProductHierarchy = c.ProductHierarchy and format(b.MTD, 'yyyy') = format(c.DeliveryDate, 'yyyy') and format(b.MTD, 'MM') = format(c.DeliveryDate, 'MM')and b.Row# = c.Row#
+where c.OpportunityID is not null
+)
 --CTE Invoiced PP that mapped as forecasted
 ,invoiced_forecasted as (
 select b.*, case when c.OpportunityID is not null then 'Yes' else 'No' end as isForecast 
@@ -975,27 +984,160 @@ from (
 
 select 
 	a.*
-	,ROW_NUMBER() OVER(PARTITION BY format(MTD, 'yyyy'),format(MTD, 'MM'), accountID, producthierarchy ORDER BY format(MTD, 'yyyy') ASC,format(MTD, 'MM') ASC, accountID ASC, producthierarchy ASC, billingdocument desc) AS Row#
-from invoiced a 
+	,ROW_NUMBER() OVER(PARTITION BY format(a.MTD, 'yyyy'),format(a.MTD, 'MM'), a.accountID, a.producthierarchy ORDER BY format(a.MTD, 'yyyy') ASC,format(a.MTD, 'MM') ASC, a.accountID ASC, a.producthierarchy ASC, a.billingdocument desc) AS Row#
+from invoiced a
+left join invoiced_carriedover invd on a.SalesDocument = invd.SalesDocument and a.SalesDocumentItem = invd.SalesDocumentItem
+where invd.SalesDocument is null
 
 ) b
 left join 
 (select *, 
 ROW_NUMBER() OVER(PARTITION BY format(DeliveryDate, 'yyyy') ,format(DeliveryDate, 'MM'),accountID, producthierarchy ORDER BY format(DeliveryDate, 'yyyy') ASC,format(DeliveryDate, 'MM') ASC,accountID ASC, producthierarchy ASC) AS Row#
-from EDW_ANALYTICS.dbo.forecast where AccountID <> 1) as c 
+from EDW_ANALYTICS.dbo.forecast where AccountID <> 1 and FORECAST <> 'Carried Over') as c 
 on b.AccountID = c.AccountID and b.ProductHierarchy = c.ProductHierarchy and format(b.MTD, 'yyyy') = format(c.DeliveryDate, 'yyyy') and format(b.MTD, 'MM') = format(c.DeliveryDate, 'MM')and b.Row# = c.Row#
 where c.OpportunityID is not null
 )
 --CTE Invoiced PP that mapped as forecasted by customer group
 ,invoiced_forecasted_customer_group as (
-select b.*, case when c.OpportunityID is not null then 'Yes' else 'No' end as isForecast 
+select 
+	b.SalesDocument,
+	b.SalesDocumentItem,
+	b.SalesDocumentType,
+	b.HigerLevelItem,
+	b.SpaNo,
+	b.PurchaseOrderNo,
+	b.PurchaseOrderDate,
+	b.SalesOrganization,
+	b.Division,
+	b.Area,
+	b.SalesOffice,
+	b.SoldToParty,
+	b.EndDestination,
+	b.BilltoPartyname,
+	b.Payer,
+	b.Payername,
+	b.FinancingCompany,
+	b.FinancingCompanyName,
+	b.Model,
+	b.Batch,
+	b.serialNumber,
+	b.MaterialNumber,
+	b.MaterialDescription,
+	b.Source,
+	b.Incoterms,
+	b.IncotermsPart2,
+	b.PWCCode,
+	b.ApplicationCode,
+	b.CICGroup,
+	b.RequestDeliveryDate,
+	b.TermsofPayment,
+	b.PaymentTermsNote,
+	b.Description,
+	b.Price,
+	b.Tax,
+	b.PDC_PDG_curr,
+	b.SalesmanID,
+	b.SalesmanName,
+	b.DeliverySalesmanID,
+	b.DeliverySalesmanName,
+	b.Marketingprogram,
+	b.Voucher,
+	b.CCRNo,
+	b.ReleaseApprovalNo,
+	b.ReleaseApprovalDate,
+	b.ReleaseApprovalBy,
+	b.Created,
+	b.RequestChangeStatustoWorkable,
+	b.Workable,
+	b.RequestToDoOverdueCheck,
+	b.RequestReleaseApprovalNo,
+	b.ReleaseApproval,
+	b.FullyPaid,
+	b.POLeasing,
+	b.NotesforOverdueBranch,
+	b.NotesforOverdueGroup,
+	b.Remarks,
+	b.NPWP,
+	b.Delivery,
+	b.DeliveryDate,
+	b.BAST_NO,
+	b.StatusPGI,
+	b.PGIdate,
+	b.BASTSigndate,
+	b.ProofOfdeliveryStatus,
+	b.ProofOfdeliverydate,
+	b.BillingDocument,
+	b.BillingDate,
+	b.ReasonforRejection,
+	b.PDC_PDG,
+	b.Amount,
+	b.DueDate,
+	b.DistributionChannel,
+	b.Region,
+	b.SoldToPartyName,
+	b.BusinessArea,
+	b.CustomerPhoneNo,
+	b.ServiceContact,
+	b.SalesContact,
+	b.BillToParty,
+	b.Quantity,
+	b.SOCurr,
+	b.LeasingFundingDate,
+	b.SPPKADate,
+	b.ActualNetRevenue,
+	b.SODeliveryDate,
+	b.typeDivision,
+	b.market_sector,
+	b.DeliveryFlag,
+	b.PP_ST3_ST5,
+	b.ProgressStatus,
+	b.ActualNetInIDR,
+	b.ActualNetInUSD,
+	b.CustomerClassCodes,
+	b.ProductCode,
+	b.PRODUCT_HIERARCHY,
+	b.MTD,
+	b.DeliveryDatef,
+	b.sales_type,
+	b.Forecast,
+	b.ConfidenceLevel,
+	b.SOID,
+	b.SOItemNo,
+	b.OpportunityStatus,
+	b.customer_key,
+	b.CustomerClassCode,
+	b.OpportunityID,
+	b.OpportunityItemNo,
+	b.product_material_key,
+	b.ProductID,
+	b.ProductModel,
+	b.INDUSTRY_KEY,
+	b.VerticalIndustry,
+	b.NetValueInIDR,
+	b.NetValueInUSD,
+	b.SerialNo,
+	b.market_sector_key,
+	b.sales_off_code,
+	b.Business_Area_Key,
+	b.MaterialType,
+	b.CICGroups,
+	b.AccountID,
+	CONCAT(b.AccountName, ' / ',c.AccountName) as AccountName,
+	b.ProductHierarchy,
+	b.Customer_Group,
+	b.area_name,
+	b.Customer_Type,
+	b.MarketSector,
+	b.rate,
+	b.Row#,
+	case when c.OpportunityID is not null then 'Yes' else 'No' end as isForecast 
 from (
 
 select 
 	a.*,
 	ROW_NUMBER() OVER(PARTITION BY format(a.MTD, 'yyyy'),format(a.MTD, 'MM'), a.Customer_Group, a.producthierarchy ORDER BY format(a.MTD, 'yyyy') ASC,format(a.MTD, 'MM') ASC, a.Customer_Group ASC, a.producthierarchy ASC, a.billingdocument desc) AS Row#
 from invoiced a
-left join invoiced_forecasted invd on a.SalesDocument = invd.SalesDocument and a.SalesDocumentItem = invd.SalesDocumentItem
+left join (select * from invoiced_forecasted union select * from invoiced_carriedover) invd on a.SalesDocument = invd.SalesDocument and a.SalesDocumentItem = invd.SalesDocumentItem
 where invd.SalesDocument is null
 
 ) b
@@ -1004,7 +1146,7 @@ left join
 ROW_NUMBER() OVER(PARTITION BY format(f.DeliveryDate, 'yyyy') ,format(f.DeliveryDate, 'MM'),da.Customer_Group, f.producthierarchy ORDER BY format(f.DeliveryDate, 'yyyy') ASC,format(f.DeliveryDate, 'MM') ASC,da.Customer_Group ASC, f.producthierarchy ASC) AS Row#
 from EDW_ANALYTICS.dbo.forecast f
 left join EDW_ANALYTICS.dbo.dim_customer_group_mapping da on concat('000',cast(f.AccountID as nvarchar(10))) = da.Account_ID
-where f.AccountID <> 1 and da.Customer_Group is not null and da.Customer_Group <> '') as c 
+where f.AccountID <> 1 and FORECAST <> 'Carried Over' and da.Customer_Group is not null and da.Customer_Group <> '') as c 
 on b.Customer_Group = c.Customer_Group and b.AccountID <> c.AccountID and b.ProductHierarchy = c.ProductHierarchy and format(b.MTD, 'yyyy') = format(c.DeliveryDate, 'yyyy') and format(b.MTD, 'MM') = format(c.DeliveryDate, 'MM')and b.Row# = c.Row#
 where c.OpportunityID is not null
 )
@@ -1034,7 +1176,7 @@ from (
 		a.*
 		,ROW_NUMBER() OVER(PARTITION BY format(a.MTD, 'yyyy'),format(a.MTD, 'MM'),a.producthierarchy, a.area_name ORDER BY format(a.MTD, 'yyyy') ASC,format(a.MTD, 'MM') ASC,a.producthierarchy ASC, a.area_name ASC, a.billingdocument desc) AS Row#
 	from invoiced a 
-	left join (select * from invoiced_forecasted union select * from invoiced_forecasted_customer_group) invd on a.SalesDocument = invd.SalesDocument and a.SalesDocumentItem = invd.SalesDocumentItem
+	left join (select * from invoiced_forecasted union select * from invoiced_carriedover union select * from invoiced_forecasted_customer_group) invd on a.SalesDocument = invd.SalesDocument and a.SalesDocumentItem = invd.SalesDocumentItem
 	where invd.SalesDocument is null
 	) b
 left join 
@@ -1055,11 +1197,14 @@ where c.OpportunityID is not null
 
 --insert into EDW_ANALYTICS.dbo.invoiceDataNew
 select * 
-into EDW_ANALYTICS.dbo.invoiceDataNew_testing
 from (
 
 --PP Invoiced Forecasted
 select * from invoiced_forecasted
+
+--PP Invoiced Carried Over
+union
+select * from invoiced_carriedover
 
 --PP Invoiced Forecasted using Customer Group
 union
@@ -1073,7 +1218,7 @@ from (
 		a.*
 		,ROW_NUMBER() OVER(PARTITION BY format(a.MTD, 'yyyy'),format(a.MTD, 'MM'),a.producthierarchy, a.area_name ORDER BY format(a.MTD, 'yyyy') ASC,format(a.MTD, 'MM') ASC,a.producthierarchy ASC, a.area_name ASC, a.billingdocument desc) AS Row#
 	from invoiced a 
-	left join (select * from invoiced_forecasted union select * from invoiced_forecasted_customer_group) invd on a.SalesDocument = invd.SalesDocument and a.SalesDocumentItem = invd.SalesDocumentItem
+	left join (select * from invoiced_forecasted union select * from invoiced_carriedover union select * from invoiced_forecasted_customer_group) invd on a.SalesDocument = invd.SalesDocument and a.SalesDocumentItem = invd.SalesDocumentItem
 	where invd.SalesDocument is null
 	) b
 left join 
@@ -1118,7 +1263,11 @@ on b.ProductHierarchy = c.ProductHierarchy and b.area_name = c.area_name and for
 
 --Mapping Forecasted/Unforecasted Progress
 union
-select b.*, case when c.OpportunityID is not null then 'Yes' else 'No' end as isForecast 
+select b.*, 
+case 
+	when c.OpportunityID is not null and c.FORECAST = 'Yes' then 'Yes'
+	when c.OpportunityID is not null and c.FORECAST = 'Carried Over' then 'Carried Over'
+	else 'No' end as isForecast 
 from (
 select
 	a.*
