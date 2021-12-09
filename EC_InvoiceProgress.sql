@@ -1,7 +1,6 @@
---DELETE FROM EDW_ANALYTICS.dbo.invoiceDataTranform where MonthDeliveryDate = format(current_timestamp, 'yyyyMM');
---DELETE FROM EDW_ANALYTICS.dbo.invoiceDataTranform where MonthDeliveryDate = '202111';
+DELETE FROM EDW_ANALYTICS.dbo.EC_fact_invoice_progress where MonthDeliveryDate = format(current_timestamp, 'yyyyMM');
 
---INSERT INTO EDW_ANALYTICS.dbo.invoiceDataTranform
+INSERT INTO EDW_ANALYTICS.dbo.EC_fact_invoice_progress
 SELECT
 	CatID,
 	MonthDeliveryDate,
@@ -100,8 +99,7 @@ FROM
 SELECT 
 	CatID, 
 	CatGroup 
-FROM EDW_ANALYTICS.dbo.invoice_maping 
-GROUP BY CatID, CatGroup
+FROM EDW_ANALYTICS.dbo.EC_dim_invoice_progress_category
 ) AS u2
 CROSS JOIN (
 	SELECT 
@@ -117,9 +115,8 @@ CROSS JOIN (
 		MaterialType,
 		INDUSTRY_KEY,
 		CONCAT(MarketSector, '-', MaterialType) AS MappingID 
-	FROM EDW_ANALYTICS.dbo.invoiceDataNew
-	--WHERE FORMAT(MTD, 'yyyyMM') = FORMAT(CURRENT_TIMESTAMP, 'yyyyMM')
-	WHERE FORMAT(MTD, 'yyyyMM') = '202111'
+	FROM EDW_ANALYTICS.dbo.EC_fact_invoice
+	WHERE FORMAT(MTD, 'yyyyMM') = FORMAT(CURRENT_TIMESTAMP, 'yyyyMM')
 	AND CASE WHEN (area_name LIKE '%Java' and MaterialType IN ('MACHINE', 'FORK_LIFT')) THEN 'Java' WHEN (area_name LIKE '%Sumatera' and MaterialType IN ('MACHINE', 'FORK_LIFT')) THEN 'Sumatera' WHEN area_name = 'Trakindo Utama' then 'TUS' ELSE area_name END IS NOT NULL
 	GROUP BY 
 		FORMAT(MTD, 'yyyyMM'), 
@@ -249,9 +246,8 @@ SELECT
 	INDUSTRY_KEY,
 	CONCAT(MarketSector, '-', MaterialType) AS MappingID
 
-FROM EDW_ANALYTICS.dbo.invoiceDataNew
---WHERE FORMAT(MTD, 'yyyyMM') = FORMAT(CURRENT_TIMESTAMP, 'yyyyMM') 
-WHERE FORMAT(MTD, 'yyyyMM') = '202111' --End of TableSource
+FROM EDW_ANALYTICS.dbo.EC_fact_invoice
+WHERE FORMAT(MTD, 'yyyyMM') = FORMAT(CURRENT_TIMESTAMP, 'yyyyMM') --End of TableSource
 ) AS TableSource
 PIVOT(
 	COUNT(SalesDocument_)
@@ -301,9 +297,8 @@ SELECT
 	INDUSTRY_KEY,
 	CONCAT(MarketSector, '-', MaterialType) AS MappingID
 
-FROM EDW_ANALYTICS.dbo.invoiceDataNew
---WHERE FORMAT(MTD, 'yyyyMM') = FORMAT(CURRENT_TIMESTAMP, 'yyyyMM') 
-WHERE FORMAT(MTD, 'yyyyMM') = '202111' --End of TableTotalSource
+FROM EDW_ANALYTICS.dbo.EC_fact_invoice
+WHERE FORMAT(MTD, 'yyyyMM') = FORMAT(CURRENT_TIMESTAMP, 'yyyyMM') --End of TableTotalSource
 ) AS TableTotalSource
 PIVOT(
 	COUNT(SalesDocument_)
