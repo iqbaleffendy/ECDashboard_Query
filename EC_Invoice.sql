@@ -329,7 +329,7 @@ select
 	f.customer_key,
 	i.CustomerClassCodeS CustomerClassCode,
 	f.OpportunityID, 
-	--c.OpportunityID OpportunityID_c,
+	f.OpportunityItemNo,
 	f.product_material_key,
 	f.ProductID,
 	f.ProductModel,
@@ -404,7 +404,7 @@ select
 	f.customer_key,
 	f.CustomerClassCode,
 	f.OpportunityID, 
-	--c.OpportunityID OpportunityID_c,
+	f.OpportunityItemNo,
 	f.product_material_key,
 	f.ProductID,
 	f.ProductModel,
@@ -583,7 +583,7 @@ SELECT
 	,f.customer_key
 	,f.CustomerClassCode
 	,f.OpportunityID
-	--,c.OpportunityID OpportunityID_c
+	,f.OpportunityItemNo
 	,f.product_material_key
 	,f.ProductID
 	,st3.MODEL as ProductModel
@@ -746,7 +746,7 @@ SELECT
 	,f.customer_key
 	,f.CustomerClassCode
 	,f.OpportunityID
-	--,c.OpportunityID OpportunityID_c
+	,f.OpportunityItemNo
 	,f.product_material_key
 	,f.ProductID
 	,f.ProductModel
@@ -806,8 +806,8 @@ select
 	c.OpportunityStatus,
 	c.customer_key,
 	c.CustomerClassCode,
-	0 OpportunityID, 
-	--c.OpportunityID OpportunityID_c,
+	c.OpportunityID, 
+	c.OpportunityItemNo,
 	c.product_material_key,
 	c.ProductID,
 	c.ProductModel,
