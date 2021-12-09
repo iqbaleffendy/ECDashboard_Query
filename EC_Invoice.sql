@@ -1,4 +1,4 @@
---delete from dbo.invoicedatanew where format(MTD,'yyyyMM') in (format(DATEADD(MONTH, -1, CURRENT_TIMESTAMP),'yyyyMM'), format(CURRENT_TIMESTAMP,'yyyyMM'))
+delete from EDW_ANALYTICS.dbo.invoicedatanew where format(MTD,'yyyyMM') = format(CURRENT_TIMESTAMP,'yyyyMM');
 
 --CTE Forecast Daily
 with forecaseDaily as(
@@ -257,9 +257,22 @@ select
 
 from [LS_BI_PROD].EDW_STG_SAP_ECC_DAILY.dbo.ZLDB_V_ODRPP_BW a
 left join [LS_BI_PROD].EDW_STG_SAP_ECC_DAILY.dbo.ZLDB_F_INV_SOLD b on a.VBELN_VBAP = b.VBELN and a.POSNR_VBAP =b.POSNR 
-left join
-(select SCORE_DATE,PRIME_PRODUCT_SERIAL_NUMBER, CUSTOMER_CODE, CUST_NAME_OR_RENT_CUST_NAME, SCORE_ERROR, 'M1' AS MATERIAL_TYPE, SALE_TYPE from [LS_BI_PROD].EDW_STG_SAP_CRM_DAILY.dbo.zldb_score_mach union
-select SCORE_DATE,PRIME_PRODUCT_SERIAL_NUMBER, CUSTOMER_CODE, CUST_NAME_RENT_CUST_NAME, SCORE_ERROR, 'E1' AS MATERIAL_TYPE, SALE_TYPE  from [LS_BI_PROD].EDW_STG_SAP_CRM_DAILY.dbo.zldb_score_engn where CUSTOMER_CODE is not null
+left join(
+	select sl.*, sn.material_no, pm.product_model
+	from (
+		select SCORE_DATE,PRIME_PRODUCT_SERIAL_NUMBER, CUSTOMER_CODE, CUST_NAME_OR_RENT_CUST_NAME, SCORE_ERROR, 'M1' AS MATERIAL_TYPE, SALE_TYPE from [LS_BI_PROD].EDW_STG_SAP_CRM_DAILY.dbo.zldb_score_mach union
+		select SCORE_DATE,PRIME_PRODUCT_SERIAL_NUMBER, CUSTOMER_CODE, CUST_NAME_RENT_CUST_NAME, SCORE_ERROR, 'E1' AS MATERIAL_TYPE, SALE_TYPE from [LS_BI_PROD].EDW_STG_SAP_CRM_DAILY.dbo.zldb_score_engn
+	) sl
+	left join (
+		select SERIAL_NO,  cast(material_no as int) material_no 
+		from [LS_BI_PROD].EDW_DIMENSION.ECC.Dim_Serial_Equi 
+		where material_no not in ('Not Available', 'Unknown') and left(material_no,9) <> '000000005'
+	) sn on sl.PRIME_PRODUCT_SERIAL_NUMBER = sn.SERIAL_NO
+	left join (
+		select product_model,  cast(product_material_code as int) product_material_code 
+		from [LS_BI_PROD].EDW_ANALYTICS.CRM.dim_opp_product_material
+		where product_hierarchy is not null
+	) pm on sn.material_no = pm.product_material_code
 ) as ScoreLog
 on b.SERNR = ScoreLog.PRIME_PRODUCT_SERIAL_NUMBER
 where 1=1 
@@ -267,7 +280,7 @@ where 1=1
 -- and FORMAT(b.billing_date, 'yyyy-MM') = '2021-08'  
 and FORMAT (b.billing_date, 'yyyy') >= format(CURRENT_TIMESTAMP, 'yyyy')  
 and ScoreLog.SALE_TYPE  in (1,3,5) 
---and ScoreLog.SCORE_ERROR = 'N'
+and ScoreLog.SCORE_ERROR = 'N'
 )
 --CTE Order Tracking ST3/ST5
 ,st3 as (
@@ -314,9 +327,9 @@ where a.SCORE_ERROR = 'N' and a.SALE_TYPE in (3,5) and b.release_apprv = 'X'
 select 
 	distinct a.*,
 	das.area_name,
-	case when das.area_name like '%MA' Then 'Major Account' else 'Retail Account' end Customer_Type,
+	case when das.area_name like '% MA' Then 'Major Account' else 'Retail Account' end Customer_Type,
 	case 
-		when das.area_name like '%MA' Then CICGroups 
+		when das.area_name like '% MA' Then CICGroups 
 	else 
 		case 
 			when (market_sector is null or market_sector='') then CICGroups 
@@ -385,10 +398,10 @@ left join logscore ls on ls.sernr = i.serialnumber and ls.billing_date = i.billi
 
 where 1=1
 --and opportunityType in ('Opp  Machine','Opp  Engine','Opp  ForkLift')
---and format(i.BillingDate,'yyyyMM') = '202108'
-and format(i.BillingDate,'yyyy') =format(CURRENT_TIMESTAMP,'yyyy')
+and format(i.BillingDate,'yyyyMM') = format(CURRENT_TIMESTAMP,'yyyyMM')
+--and format(i.BillingDate,'yyyy') =format(CURRENT_TIMESTAMP,'yyyy')
 and left(MaterialNumber, 2) in ('M1','E1','F1')
-and (ls.hitung=1 or left(MaterialNumber, 2) in ('E1','F1'))
+and (ls.hitung = 1 or left(MaterialNumber, 2) = 'F1')
 --and BillingDocument is not null
 --and i.serialNumber ='YJW10239'
 --and pbill.qty_inv <=1
@@ -405,9 +418,9 @@ left join EDW_ANALYTICS.dbo.dim_area_store das on das.sales_code = a.sales_off_c
 select 
 	distinct a.*,
 	das.area_name,
-	case when das.area_name like '%MA' Then 'Major Account' else 'Retail Account' end Customer_Type,
+	case when das.area_name like '% MA' Then 'Major Account' else 'Retail Account' end Customer_Type,
 	case 
-		when das.area_name like '%MA' Then CICGroups 
+		when das.area_name like '% MA' Then CICGroups 
 	else 
 		case 
 			when (market_sector is null or market_sector='') then CICGroups 
@@ -471,7 +484,7 @@ left join EDW_ANALYTICS.dbo.dim_company_map dcm on dcm.CompanyName = f.accountna
 
 where 1=1
 and f.opportunityType in ('Opp  Machine','Opp  Engine','Opp  ForkLift')
---and format(f.deliverydate,'yyyy') = '2021'
+and format(f.deliverydate,'yyyyMM') = format(CURRENT_TIMESTAMP,'yyyyMM')
 and f.confidencelevel>=75
 and f.Category_ID in ('M1','E1','F1')
 and f.forecast ='YES'
@@ -484,9 +497,9 @@ left join EDW_ANALYTICS.dbo.dim_area_store das on das.sales_code = a.sales_off_c
 select 
 	distinct a.*,
 	das.area_name,
-	case when das.area_name like '%MA' Then 'Major Account' else 'Retail Account' end Customer_Type,
+	case when das.area_name like '% MA' Then 'Major Account' else 'Retail Account' end Customer_Type,
 	case 
-		when das.area_name like '%MA' Then CICGroups 
+		when das.area_name like '% MA' Then CICGroups 
 	else 
 		case 
 			when (market_sector is null or market_sector='') then CICGroups 
@@ -505,40 +518,40 @@ SELECT
 	END AS SalesDocumentItem
 	,'-' AS SalesDocumentType
 	,0 AS HigerLevelItem
-	,'-' AS SpaNo
+	,st3.BSTKD AS SpaNo
 	,'-' AS PurchaseOrderNo
-	,NULL AS PurchaseOrderDate
+	,st3.BSTDK AS PurchaseOrderDate
 	,NULL AS SalesOrganization
 	,NULL AS Division
 	,NULL AS Area
 	,NULL AS SalesOffice
 	,NULL AS SoldToParty
-	,NULL AS EndDestination
+	,st3.GTEXT AS EndDestination
 	,NULL AS BilltoPartyname
-	,NULL AS Payer
-	,st3.SOLD_NM AS Payername
-	,NULL AS FinancingCompany
-	,NULL AS FinancingCompanyName
+	,st3.PAYER AS Payer
+	,st3.PAYER_NM AS Payername
+	,st3.FIN AS FinancingCompany
+	,st3.FIN_NM AS FinancingCompanyName
 	,NULL AS Model
-	,NULL AS Batch
-	,NULL AS serialNumber
+	,CAST(st3.EQUNR AS INT) AS Batch
+	,st3.SERNR AS serialNumber
 	,NULL AS MaterialNumber
 	,NULL AS MaterialDescription
 	,NULL AS Source
-	,NULL AS Incoterms
-	,NULL AS IncotermsPart2
-	,NULL AS PWCCode
+	,st3.INCO1 AS Incoterms
+	,st3.INCO2 AS IncotermsPart2
+	,st3.MVGR2 AS PWCCode
 	,NULL AS ApplicationCode
 	,NULL AS CICCode
 	,NULL AS RequestDeliveryDate
 	,NULL AS TermsofPayment
 	,NULL AS PaymentTermsNote
-	,NULL AS Description
+	,st3.ZTERM_NM AS Description
 	,NULL AS Price
 	,NULL AS Tax
 	,NULL AS PDC_PDG_curr
-	,NULL AS SalesmanID
-	,NULL AS SalesmanName
+	,st3.SLS AS SalesmanID
+	,st3.SLS_NM AS SalesmanName
 	,NULL AS DeliverySalesmanID
 	,NULL AS DeliverySalesmanName
 	,NULL AS Marketingprogram
@@ -570,11 +583,8 @@ SELECT
 	,NULL AS BASTSigndate
 	,NULL AS ProofOfdeliveryStatus
 	,NULL AS ProofOfdeliverydate
-	,CASE
-		WHEN st3.BAST_NO IS NOT NULL AND st3.BAST_NO <> '' THEN 1234
-		ELSE NULL
-	END AS BillingDocument
-	,NULL AS BillingDate
+	,st3.BAST_NO AS BillingDocument
+	,st3.FKDAT AS BillingDate
 	,NULL AS ReasonforRejection
 	,NULL AS PDC_PDG
 	,NULL AS Amount
@@ -582,7 +592,7 @@ SELECT
 	,NULL AS DistributionChannel
 	,NULL AS Region
 	,NULL AS SoldToPartyName
-	,NULL AS BusinessArea
+	,st3.GSBER AS BusinessArea
 	,NULL AS CustomerPhoneNo
 	,NULL AS ServiceContact
 	,NULL AS SalesContact
@@ -641,8 +651,8 @@ SELECT
 	--	ELSE 'Yes' 
 	--END AS isForecast
 	,f.CICGroup CICGroups
-	,f.AccountID
-	,f.AccountName
+	,CAST(st3.SOLD AS INT) AccountID
+	,st3.SOLD_NM AccountName
 	,st3.PRODUCT_HIERARCHY ProductHierarchy
 	--,CONCAT(f.AccountID,st3.ProductHierarchy, year(st3.SCORE_DATE), month(st3.SCORE_DATE)) AS forecastedkey
 
@@ -654,7 +664,7 @@ LEFT JOIN EDW_ANALYTICS.dbo.dim_area_store das ON das.sales_code = st3.sales_cod
 WHERE 1=1
 --AND f.opportunityType IN ('Opp  Rental')
 --AND f.Category_ID in ('M1','E1','F1')
---and format(st3.SCORE_DATE,'yyyyMM') =format(CURRENT_TIMESTAMP,'yyyyMM')
+and format(st3.SCORE_DATE,'yyyyMM') =format(CURRENT_TIMESTAMP,'yyyyMM')
 AND st3.BAST_NO IS NOT NULL AND st3.BAST_NO <> ''
 ) a 
 left join EDW_ANALYTICS.dbo.dim_area_store das on das.sales_code = a.sales_off_code
@@ -664,9 +674,9 @@ left join EDW_ANALYTICS.dbo.dim_area_store das on das.sales_code = a.sales_off_c
 select 
 	distinct a.*,
 	das.area_name,
-	case when das.area_name like '%MA' Then 'Major Account' else 'Retail Account' end Customer_Type,
+	case when das.area_name like '% MA' Then 'Major Account' else 'Retail Account' end Customer_Type,
 	case 
-		when das.area_name like '%MA' Then CICGroups 
+		when das.area_name like '% MA' Then CICGroups 
 	else 
 		case 
 			when (market_sector is null or market_sector='') then CICGroups 
@@ -685,40 +695,40 @@ SELECT
 	END AS SalesDocumentItem
 	,'-' AS SalesDocumentType
 	,0 AS HigerLevelItem
-	,'-' AS SpaNo
+	,st3.BSTKD AS SpaNo
 	,'-' AS PurchaseOrderNo
-	,NULL AS PurchaseOrderDate
+	,st3.BSTDK AS PurchaseOrderDate
 	,NULL AS SalesOrganization
 	,NULL AS Division
 	,NULL AS Area
 	,NULL AS SalesOffice
 	,NULL AS SoldToParty
-	,NULL AS EndDestination
+	,st3.GTEXT AS EndDestination
 	,NULL AS BilltoPartyname
-	,NULL AS Payer
-	,st3.SOLD_NM AS Payername
-	,NULL AS FinancingCompany
-	,NULL AS FinancingCompanyName
+	,st3.PAYER AS Payer
+	,st3.PAYER_NM AS Payername
+	,st3.FIN AS FinancingCompany
+	,st3.FIN_NM AS FinancingCompanyName
 	,NULL AS Model
-	,NULL AS Batch
-	,NULL AS serialNumber
+	,CAST(st3.EQUNR AS INT) AS Batch
+	,st3.SERNR AS serialNumber
 	,NULL AS MaterialNumber
 	,NULL AS MaterialDescription
 	,NULL AS Source
-	,NULL AS Incoterms
-	,NULL AS IncotermsPart2
-	,NULL AS PWCCode
+	,st3.INCO1 AS Incoterms
+	,st3.INCO2 AS IncotermsPart2
+	,st3.MVGR2 AS PWCCode
 	,NULL AS ApplicationCode
 	,NULL AS CICCode
 	,NULL AS RequestDeliveryDate
 	,NULL AS TermsofPayment
 	,NULL AS PaymentTermsNote
-	,NULL AS Description
+	,st3.ZTERM_NM AS Description
 	,NULL AS Price
 	,NULL AS Tax
 	,NULL AS PDC_PDG_curr
-	,NULL AS SalesmanID
-	,NULL AS SalesmanName
+	,st3.SLS AS SalesmanID
+	,st3.SLS_NM AS SalesmanName
 	,NULL AS DeliverySalesmanID
 	,NULL AS DeliverySalesmanName
 	,NULL AS Marketingprogram
@@ -750,10 +760,7 @@ SELECT
 	,NULL AS BASTSigndate
 	,NULL AS ProofOfdeliveryStatus
 	,NULL AS ProofOfdeliverydate
-	,CASE
-		WHEN st3.BAST_NO IS NOT NULL AND st3.BAST_NO <> '' THEN 1234
-		ELSE NULL
-	END AS BillingDocument
+	,NULL AS BillingDocument
 	,NULL AS BillingDate
 	,NULL AS ReasonforRejection
 	,NULL AS PDC_PDG
@@ -762,7 +769,7 @@ SELECT
 	,NULL AS DistributionChannel
 	,NULL AS Region
 	,NULL AS SoldToPartyName
-	,NULL AS BusinessArea
+	,st3.GSBER AS BusinessArea
 	,NULL AS CustomerPhoneNo
 	,NULL AS ServiceContact
 	,NULL AS SalesContact
@@ -839,7 +846,7 @@ AND f.sales_type in ('ST3','ST5')
 AND f.confidencelevel >= 75
 AND f.Category_ID in ('M1','E1','F1')
 AND f.forecast ='YES'
-and format(st3.SCORE_DATE,'yyyyMM') =format(CURRENT_TIMESTAMP,'yyyyMM')
+and format(f.deliverydate,'yyyyMM') =format(CURRENT_TIMESTAMP,'yyyyMM')
 AND (st3.BAST_NO IS NULL OR st3.BAST_NO = '')
 ) a 
 left join EDW_ANALYTICS.dbo.dim_area_store das on das.sales_code = a.sales_off_code
@@ -849,9 +856,9 @@ left join EDW_ANALYTICS.dbo.dim_area_store das on das.sales_code = a.sales_off_c
 select 
 	distinct a.*,
 	das.area_name,
-	case when das.area_name like '%MA' Then 'Major Account' else 'Retail Account' end Customer_Type,
+	case when das.area_name like '% MA' Then 'Major Account' else 'Retail Account' end Customer_Type,
 	case 
-		when das.area_name like '%MA' Then CICGroups 
+		when das.area_name like '% MA' Then CICGroups 
 	else 
 		case 
 			when (market_sector is null or market_sector='') then CICGroups 
@@ -939,10 +946,11 @@ from invoiced a
 left join 
 (select *, 
 ROW_NUMBER() OVER(PARTITION BY format(DeliveryDate, 'yyyy') ,format(DeliveryDate, 'MM'),accountID, producthierarchy ORDER BY format(DeliveryDate, 'yyyy') ASC,format(DeliveryDate, 'MM') ASC,accountID ASC, producthierarchy ASC) AS Row#
-from EDW_ANALYTICS.dbo.forecast where AccountName <> 'TBA') as c 
+from EDW_ANALYTICS.dbo.forecast where AccountID <> 1) as c 
 on b.AccountID = c.AccountID and b.ProductHierarchy = c.ProductHierarchy and format(b.MTD, 'yyyy') = format(c.DeliveryDate, 'yyyy') and format(b.MTD, 'MM') = format(c.DeliveryDate, 'MM')and b.Row# = c.Row#
 where c.OpportunityID is not null
 )
+--CTE Invoiced ST3/ST5 that mapped as forecasted
 ,st3_invoiced_forecasted as (
 select b.*, case when c.OpportunityID is not null then 'Yes' else 'No' end as isForecast 
 from (
@@ -956,7 +964,7 @@ from st3_invoiced a
 left join 
 (select *, 
 ROW_NUMBER() OVER(PARTITION BY format(DeliveryDate, 'yyyy') ,format(DeliveryDate, 'MM'),accountID, producthierarchy ORDER BY format(DeliveryDate, 'yyyy') ASC,format(DeliveryDate, 'MM') ASC,accountID ASC, producthierarchy ASC) AS Row#
-from EDW_ANALYTICS.dbo.forecast where AccountName <> 'TBA') as c 
+from EDW_ANALYTICS.dbo.forecast where AccountID <> 1) as c 
 on b.AccountID = c.AccountID and b.ProductHierarchy = c.ProductHierarchy and format(b.MTD, 'yyyy') = format(c.DeliveryDate, 'yyyy') and format(b.MTD, 'MM') = format(c.DeliveryDate, 'MM')and b.Row# = c.Row#
 where c.OpportunityID is not null
 )
@@ -973,14 +981,14 @@ from (
 left join 
 (select c1.*, c2.area_name, 
 ROW_NUMBER() OVER(PARTITION BY format(c1.DeliveryDate, 'yyyy') ,format(c1.DeliveryDate, 'MM'),c1.producthierarchy, c2.area_name ORDER BY format(c1.DeliveryDate, 'yyyy') ASC,format(c1.DeliveryDate, 'MM') ASC, c1.producthierarchy ASC, c2.area_name ASC) AS Row#
-from EDW_ANALYTICS.dbo.forecast c1 left join EDW_ANALYTICS.dbo.dim_area_store c2 on c1.sales_off_code = c2.sales_code where AccountName = 'TBA') as c 
+from EDW_ANALYTICS.dbo.forecast c1 left join EDW_ANALYTICS.dbo.dim_area_store c2 on c1.sales_off_code = c2.sales_code where AccountID = 1) as c 
 on b.ProductHierarchy = c.ProductHierarchy and b.area_name = c.area_name and format(b.MTD, 'yyyy') = format(c.DeliveryDate, 'yyyy') and format(b.MTD, 'MM') = format(c.DeliveryDate, 'MM') and b.Row# = c.Row#
 where c.OpportunityID is not null
 )
 
 -----------------------------------------------------------------------------
 
---insert into EDW_ANALYTICS.dbo.invoiceDataNew
+insert into EDW_ANALYTICS.dbo.invoiceDataNew
 select * 
 --into EDW_ANALYTICS.dbo.invoiceDataNew
 from (
@@ -1004,10 +1012,10 @@ left join
 ROW_NUMBER() OVER(PARTITION BY format(c1.DeliveryDate, 'yyyy') ,format(c1.DeliveryDate, 'MM'),c1.producthierarchy, c2.area_name ORDER BY format(c1.DeliveryDate, 'yyyy') ASC,format(c1.DeliveryDate, 'MM') ASC, c1.producthierarchy ASC, c2.area_name ASC) AS Row#
 from EDW_ANALYTICS.dbo.forecast c1 
 left join EDW_ANALYTICS.dbo.dim_area_store c2 on c1.sales_off_code = c2.sales_code 
-where AccountName = 'TBA') as c 
+where AccountID = 1) as c 
 on b.ProductHierarchy = c.ProductHierarchy and b.area_name = c.area_name and format(b.MTD, 'yyyy') = format(c.DeliveryDate, 'yyyy') and format(b.MTD, 'MM') = format(c.DeliveryDate, 'MM')and b.Row# = c.Row#
 
---ST3 Invoiced (BAST)
+--ST3 Invoiced
 union
 select * from st3_invoiced_forecasted
 
@@ -1028,7 +1036,7 @@ ROW_NUMBER() OVER(PARTITION BY format(c1.DeliveryDate, 'yyyy') ,format(c1.Delive
 from EDW_ANALYTICS.dbo.forecast c1 
 left join EDW_ANALYTICS.dbo.dim_area_store c2 on c1.sales_off_code = c2.sales_code 
 left join tba_used c3 on c1.OpportunityID = c3.OpportunityID 
-where AccountName = 'TBA'
+where AccountID = 1
 and c3.OpportunityID is null) as c 
 on b.ProductHierarchy = c.ProductHierarchy and b.area_name = c.area_name and format(b.MTD, 'yyyy') = format(c.DeliveryDate, 'yyyy') and format(b.MTD, 'MM') = format(c.DeliveryDate, 'MM')and b.Row# = c.Row#
 
@@ -1060,3 +1068,5 @@ on b.AccountID = c.AccountID and b.ProductHierarchy = c.ProductHierarchy and for
 --and MaterialType = 'MACHINE'
 --and isForecast = 'Yes'
 ;
+
+EXEC EDW_ANALYTICS.dbo.sp_invoicetransform;
