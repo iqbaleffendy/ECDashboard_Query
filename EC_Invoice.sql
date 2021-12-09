@@ -1,4 +1,7 @@
+--delete from EDW_ANALYTICS.dbo.invoiceDataNew where format(MTD,'yyyy') = format(CURRENT_TIMESTAMP, 'yyyy');
+--delete from EDW_ANALYTICS.dbo.invoiceDataNew where format(MTD,'yyyyMM') = format(CURRENT_TIMESTAMP, 'yyyyMM');
 --delete from EDW_ANALYTICS.dbo.invoiceDataNew where format(MTD,'yyyyMM') = '202110';
+drop table EDW_ANALYTICS.dbo.invoiceDataNew_testing;
 
 --CTE Forecast Daily
 with forecaseDaily as(
@@ -276,8 +279,6 @@ left join(
 ) as ScoreLog
 on b.SERNR = ScoreLog.PRIME_PRODUCT_SERIAL_NUMBER
 where 1=1 
---left(b.MFRPN, 2) in ('M1')
--- and FORMAT(b.billing_date, 'yyyy-MM') = '2021-08'  
 and FORMAT (b.billing_date, 'yyyy') >= format(CURRENT_TIMESTAMP, 'yyyy')  
 and ScoreLog.SALE_TYPE  in (1,3,5) 
 --and ScoreLog.SCORE_ERROR = 'N'
@@ -374,7 +375,11 @@ select
 					end
 				else  d.sales_code
 			end
-		when i.SalesOrganization = '1Z02' then i.BusinessArea 
+		when i.SalesOrganization = '1Z02' then
+			case
+				when i.BusinessArea = '0Z02' then d.sales_code
+				else i.BusinessArea
+			end
 	end sales_off_code,
 	f.sales_off_code Business_Area_Key,
 	CASE 
@@ -388,7 +393,8 @@ select
 	i.CICGroup CICGroups,
 	CAST(i.SoldToParty as INT) AccountID,
 	i.SoldToPartyName AccountName,
-	i.PRODUCT_HIERARCHY ProductHierarchy
+	i.PRODUCT_HIERARCHY ProductHierarchy,
+	da.Customer_Group
 	--,CONCAT(CAST(i.SoldToParty as INT),i.ProductHierarchy, year(i.BillingDate), month(i.BillingDate)) AS forecastedkey
 
 from invoice i 
@@ -396,22 +402,20 @@ left join forecaseDaily f on i.salesDocument = f.SOID and i.salesdocumentItem = 
 --left join EDW_ANALYTICS.dbo.forecast c on  c.OpportunityID = f.OpportunityID and c.OpportunityItemNo = f.OpportunityItemNo
 left join EDW_ANALYTICS.dbo.dim_area_sales d on i.SalesmanID  = d.sales_id
 --left join EDW_ANALYTICS.dbo.dim_area_store das on d.sales_code = das.sales_code
-left join EDW_ANALYTICS.dbo.dim_company_map dcm on dcm.CompanyName = i.Payername
+left join EDW_ANALYTICS.dbo.dim_company_map dcm on dcm.CompanyID = CAST(i.SoldToParty as INT)
 left join logscore ls on ls.sernr = i.serialnumber and ls.billing_date = i.billingdate
+left join EDW_ANALYTICS.dbo.dim_customer_group_mapping da on i.SoldToParty = da.Account_ID
 
 where 1=1
 --and opportunityType in ('Opp  Machine','Opp  Engine','Opp  ForkLift')
-and format(i.BillingDate,'yyyyMM') = '202110'
---and format(i.BillingDate,'yyyy') =format(CURRENT_TIMESTAMP,'yyyy')
+--and format(i.BillingDate,'yyyyMM') = format(CURRENT_TIMESTAMP, 'yyyyMM')
+--and format(i.BillingDate,'yyyyMM') = '202110'
+and format(i.BillingDate,'yyyy') = format(CURRENT_TIMESTAMP,'yyyy')
 and left(MaterialNumber, 2) in ('M1','E1','F1')
-and (ls.hitung = 1 or left(MaterialNumber, 2) = 'F1')
+and (ls.hitung = 1 or left(MaterialNumber, 2) = 'F1' or i.SalesDocumentType <> 'ZEPP' or ls.SCORE_DATE is null)
 --and BillingDocument is not null
---and i.serialNumber ='YJW10239'
---and pbill.qty_inv <=1
---and pbill.
 --and confidence_level>=75
 --and forecast ='YES'
---and (f.so_id is null or f.so_id=0)
 ) abc
 ) a 
 left join EDW_ANALYTICS.dbo.dim_area_store das on das.sales_code = a.sales_off_code
@@ -479,18 +483,22 @@ select
 	f.MarketSector CICGroups,
 	f.AccountID,
 	f.AccountName,
-	f.PRODUCT_HIERARCHY ProductHierarchy
+	f.PRODUCT_HIERARCHY ProductHierarchy,
+	da.Customer_Group
 	--,CONCAT(f.AccountID,i.ProductHierarchy, year(f.deliverydate), month(f.deliverydate)) AS forecastedkey
 
 from forecaseDaily f 
 left join invoice i on i.salesDocument = f.SOID and i.salesdocumentItem = f.SOItemNo 
 --left join EDW_ANALYTICS.dbo.forecast c on c.OpportunityID = f.OpportunityID and c.OpportunityItemNo = f.OpportunityItemNo 
 left join EDW_ANALYTICS.dbo.dim_area_store das on das.sales_code = f.SalesOffice
-left join EDW_ANALYTICS.dbo.dim_company_map dcm on dcm.CompanyName = f.accountname
+left join EDW_ANALYTICS.dbo.dim_company_map dcm on dcm.CompanyID = f.AccountID
+left join EDW_ANALYTICS.dbo.dim_customer_group_mapping da on concat('000',cast(f.AccountID as nvarchar(10))) = da.Account_ID
 
 where 1=1
 and f.opportunityType in ('Opp  Machine','Opp  Engine','Opp  ForkLift')
-and format(f.deliverydate,'yyyyMM') = '202110'
+--and format(f.deliverydate,'yyyyMM') = format(CURRENT_TIMESTAMP, 'yyyyMM')
+--and format(f.deliverydate,'yyyyMM') = '202110'
+and format(f.deliverydate,'yyyy') = format(CURRENT_TIMESTAMP, 'yyyy')
 and f.confidencelevel>=75
 and f.Category_ID in ('M1','E1','F1')
 and f.forecast ='YES'
@@ -663,17 +671,21 @@ SELECT
 	,CAST(st3.SOLD AS INT) AccountID
 	,st3.SOLD_NM AccountName
 	,st3.PRODUCT_HIERARCHY ProductHierarchy
+	,da.Customer_Group
 	--,CONCAT(f.AccountID,st3.ProductHierarchy, year(st3.SCORE_DATE), month(st3.SCORE_DATE)) AS forecastedkey
 
 FROM st3
 LEFT JOIN forecaseDaily AS f ON st3.VBELN_VA = f.SOID AND st3.POSNR_VA = f.SOItemNo
 --LEFT JOIN EDW_ANALYTICS.dbo.forecast AS c ON c.OpportunityID = f.OpportunityID AND c.OpportunityItemNo = f.OpportunityItemNo
 LEFT JOIN EDW_ANALYTICS.dbo.dim_area_store das ON das.sales_code = st3.sales_code
+left join EDW_ANALYTICS.dbo.dim_customer_group_mapping da on st3.SOLD = da.Account_ID
 
 WHERE 1=1
 --AND f.opportunityType IN ('Opp  Rental')
 --AND f.Category_ID in ('M1','E1','F1')
-and format(st3.SCORE_DATE,'yyyyMM') = '202110'
+--and format(st3.SCORE_DATE,'yyyyMM') = format(CURRENT_TIMESTAMP, 'yyyyMM')
+--and format(st3.SCORE_DATE,'yyyyMM') = '202110'
+and format(st3.SCORE_DATE,'yyyy') = format(CURRENT_TIMESTAMP, 'yyyy')
 AND st3.BAST_NO IS NOT NULL AND st3.BAST_NO <> ''
 ) a 
 left join EDW_ANALYTICS.dbo.dim_area_store das on das.sales_code = a.sales_off_code
@@ -845,12 +857,15 @@ SELECT
 	,f.AccountID
 	,f.AccountName
 	,f.PRODUCT_HIERARCHY ProductHierarchy
+	,da.Customer_Group
 	--,CONCAT(f.AccountID,st3.ProductHierarchy, year(f.deliverydate), month(f.deliverydate)) AS forecastedkey
 
 FROM forecaseDaily AS f
 LEFT JOIN st3 ON st3.VBELN_VA = f.SOID AND st3.POSNR_VA = f.SOItemNo
 --LEFT JOIN EDW_ANALYTICS.dbo.forecast AS c ON c.OpportunityID = f.OpportunityID AND c.OpportunityItemNo = f.OpportunityItemNo
 LEFT JOIN EDW_ANALYTICS.dbo.dim_area_store das ON das.sales_code = f.SalesOffice
+left join EDW_ANALYTICS.dbo.dim_customer_group_mapping da on concat('000',cast(f.AccountID as nvarchar(10))) = da.Account_ID
+
 
 WHERE 1=1
 AND f.opportunityType IN ('Opp  Rental')
@@ -858,7 +873,9 @@ AND f.sales_type in ('ST3','ST5')
 AND f.confidencelevel >= 75
 AND f.Category_ID in ('M1','E1','F1')
 AND f.forecast ='YES'
-and format(f.deliverydate,'yyyyMM') = '202110'
+--and format(f.deliverydate,'yyyyMM') = format(CURRENT_TIMESTAMP, 'yyyyMM')
+--and format(f.deliverydate,'yyyyMM') ='202110'
+and format(f.deliverydate,'yyyy') = format(CURRENT_TIMESTAMP, 'yyyy')
 AND (st3.BAST_NO IS NULL OR st3.BAST_NO = '')
 ) a 
 left join EDW_ANALYTICS.dbo.dim_area_store das on das.sales_code = a.sales_off_code
@@ -916,16 +933,20 @@ select
 	c.CICGroup CICGroups,
 	c.AccountID,
 	c.AccountName,
-	c.ProductHierarchy
+	c.ProductHierarchy,
+	da.Customer_Group
 	--,CONCAT(c.AccountID,c.ProductHierarchy, year(c.deliverydate), month(c.deliverydate)) AS forecastedkey
 
 from EDW_ANALYTICS.dbo.forecast c 
 left join invoice i on i.salesDocument = c.SOID and i.salesdocumentItem = c.SOItemNo 
 left join EDW_ANALYTICS.dbo.dim_area_store das on das.sales_code = c.SalesOffice
+left join EDW_ANALYTICS.dbo.dim_customer_group_mapping da on concat('000',cast(c.AccountID as nvarchar(10))) = da.Account_ID
 
 where 1=1
 and c.opportunityType in ('Opp  Machine','Opp  Engine','Opp  ForkLift')
-and format(c.deliverydate,'yyyyMM') = '202110'
+--and format(c.deliverydate,'yyyyMM') = format(CURRENT_TIMESTAMP, 'yyyyMM')
+--and format(c.deliverydate,'yyyyMM') = '202110'
+and format(c.deliverydate,'yyyy') = format(CURRENT_TIMESTAMP, 'yyyy')
 and c.confidencelevel>=75
 and c.Category_ID in ('M1','E1','F1')
 and c.forecast ='YES'
@@ -965,6 +986,29 @@ from EDW_ANALYTICS.dbo.forecast where AccountID <> 1) as c
 on b.AccountID = c.AccountID and b.ProductHierarchy = c.ProductHierarchy and format(b.MTD, 'yyyy') = format(c.DeliveryDate, 'yyyy') and format(b.MTD, 'MM') = format(c.DeliveryDate, 'MM')and b.Row# = c.Row#
 where c.OpportunityID is not null
 )
+--CTE Invoiced PP that mapped as forecasted by customer group
+,invoiced_forecasted_customer_group as (
+select b.*, case when c.OpportunityID is not null then 'Yes' else 'No' end as isForecast 
+from (
+
+select 
+	a.*,
+	ROW_NUMBER() OVER(PARTITION BY format(a.MTD, 'yyyy'),format(a.MTD, 'MM'), a.Customer_Group, a.producthierarchy ORDER BY format(a.MTD, 'yyyy') ASC,format(a.MTD, 'MM') ASC, a.Customer_Group ASC, a.producthierarchy ASC, a.billingdocument desc) AS Row#
+from invoiced a
+left join invoiced_forecasted invd on a.SalesDocument = invd.SalesDocument and a.SalesDocumentItem = invd.SalesDocumentItem
+where invd.SalesDocument is null
+
+) b
+left join 
+(select f.*, da.Customer_Group,
+ROW_NUMBER() OVER(PARTITION BY format(f.DeliveryDate, 'yyyy') ,format(f.DeliveryDate, 'MM'),da.Customer_Group, f.producthierarchy ORDER BY format(f.DeliveryDate, 'yyyy') ASC,format(f.DeliveryDate, 'MM') ASC,da.Customer_Group ASC, f.producthierarchy ASC) AS Row#
+from EDW_ANALYTICS.dbo.forecast f
+left join EDW_ANALYTICS.dbo.dim_customer_group_mapping da on concat('000',cast(f.AccountID as nvarchar(10))) = da.Account_ID
+where f.AccountID <> 1 and da.Customer_Group is not null and da.Customer_Group <> '') as c 
+on b.Customer_Group = c.Customer_Group and b.AccountID <> c.AccountID and b.ProductHierarchy = c.ProductHierarchy and format(b.MTD, 'yyyy') = format(c.DeliveryDate, 'yyyy') and format(b.MTD, 'MM') = format(c.DeliveryDate, 'MM')and b.Row# = c.Row#
+where c.OpportunityID is not null
+)
+
 --CTE Invoiced ST3/ST5 that mapped as forecasted
 ,st3_invoiced_forecasted as (
 select b.*, case when c.OpportunityID is not null then 'Yes' else 'No' end as isForecast 
@@ -990,7 +1034,7 @@ from (
 		a.*
 		,ROW_NUMBER() OVER(PARTITION BY format(a.MTD, 'yyyy'),format(a.MTD, 'MM'),a.producthierarchy, a.area_name ORDER BY format(a.MTD, 'yyyy') ASC,format(a.MTD, 'MM') ASC,a.producthierarchy ASC, a.area_name ASC, a.billingdocument desc) AS Row#
 	from invoiced a 
-	left join invoiced_forecasted invd on a.SalesDocument = invd.SalesDocument and a.SalesDocumentItem = invd.SalesDocumentItem
+	left join (select * from invoiced_forecasted union select * from invoiced_forecasted_customer_group) invd on a.SalesDocument = invd.SalesDocument and a.SalesDocumentItem = invd.SalesDocumentItem
 	where invd.SalesDocument is null
 	) b
 left join 
@@ -1007,15 +1051,19 @@ on b.ProductHierarchy = c.ProductHierarchy and b.area_name = c.area_name and for
 where c.OpportunityID is not null
 )
 
------------------------------------------------------------------------------
+-----------------------------------------------------------------------------------------------------------------------
 
 --insert into EDW_ANALYTICS.dbo.invoiceDataNew
 select * 
---into EDW_ANALYTICS.dbo.invoiceDataNew
+into EDW_ANALYTICS.dbo.invoiceDataNew_testing
 from (
 
 --PP Invoiced Forecasted
 select * from invoiced_forecasted
+
+--PP Invoiced Forecasted using Customer Group
+union
+select * from invoiced_forecasted_customer_group
 
 --PP Invoiced Push Sales
 union
@@ -1025,7 +1073,7 @@ from (
 		a.*
 		,ROW_NUMBER() OVER(PARTITION BY format(a.MTD, 'yyyy'),format(a.MTD, 'MM'),a.producthierarchy, a.area_name ORDER BY format(a.MTD, 'yyyy') ASC,format(a.MTD, 'MM') ASC,a.producthierarchy ASC, a.area_name ASC, a.billingdocument desc) AS Row#
 	from invoiced a 
-	left join invoiced_forecasted invd on a.SalesDocument = invd.SalesDocument and a.SalesDocumentItem = invd.SalesDocumentItem
+	left join (select * from invoiced_forecasted union select * from invoiced_forecasted_customer_group) invd on a.SalesDocument = invd.SalesDocument and a.SalesDocumentItem = invd.SalesDocumentItem
 	where invd.SalesDocument is null
 	) b
 left join 
@@ -1093,7 +1141,6 @@ on b.AccountID = c.AccountID and b.ProductHierarchy = c.ProductHierarchy and for
 ) test
 --where month(MTD) = 10 and year(MTD) = 2021
 --and BillingDocument is not null
---and MaterialType = 'MACHINE'
 --and isForecast = 'Yes'
 ;
 
