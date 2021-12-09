@@ -1,5 +1,7 @@
-DROP TABLE EDW_ANALYTICS.dbo.invoiceDataTranform;
+--DELETE FROM EDW_ANALYTICS.dbo.invoiceDataTranform where MonthDeliveryDate = format(current_timestamp, 'yyyyMM');
+--DELETE FROM EDW_ANALYTICS.dbo.invoiceDataTranform where MonthDeliveryDate = '202111';
 
+--INSERT INTO EDW_ANALYTICS.dbo.invoiceDataTranform
 SELECT
 	CatID,
 	MonthDeliveryDate,
@@ -13,7 +15,9 @@ SELECT
 	CatGroup,
 	Comparison As RunningTotals,
 	null_Forecasted AS Forecasted,
-	null_Unforecasted AS Unforcasted INTO EDW_ANALYTICS.dbo.invoiceDataTranform
+	null_Unforecasted AS Unforcasted,
+	null_Carried_Over AS Carried_Over
+
 FROM
 (
 --comparison_step
@@ -46,14 +50,15 @@ FROM
 --total_step
 SELECT
 	*,
-	null_Forecasted + null_Unforecasted AS Total
+	null_Forecasted + null_Unforecasted + null_Carried_Over AS Total
 FROM
 (
 --change_null_step
 SELECT
 	*,
 	ISNULL(Forecasted,0) AS null_Forecasted,
-	ISNULL(Unforecasted,0) AS null_Unforecasted
+	ISNULL(Unforecasted,0) AS null_Unforecasted,
+	ISNULL(Carried_Over,0) AS null_Carried_Over
 FROM
 (
 --Start of table_before_calculations
@@ -69,7 +74,8 @@ SELECT
 	table_mapping.INDUSTRY_KEY,
 	table_mapping.MappingID,
 	table_union1.Forecasted,
-	table_union1.Unforecasted
+	table_union1.Unforecasted,
+	table_union1.Carried_Over
 FROM
 (
 --Start of table_mapping
@@ -99,10 +105,11 @@ GROUP BY CatID, CatGroup
 ) AS u2
 CROSS JOIN (
 	SELECT 
-		MONTH(MTD) AS MonthDeliveryDate,  
+		FORMAT(MTD, 'yyyyMM') AS MonthDeliveryDate,  
 		CASE 
 			WHEN (area_name LIKE '%Java' and MaterialType IN ('MACHINE', 'FORK_LIFT')) THEN 'Java'
-			WHEN (area_name LIKE '%Sumatera' and MaterialType IN ('MACHINE', 'FORK_LIFT')) THEN 'Sumatera' ELSE area_name
+			WHEN (area_name LIKE '%Sumatera' and MaterialType IN ('MACHINE', 'FORK_LIFT')) THEN 'Sumatera' 
+			WHEN area_name = 'Trakindo Utama' then 'TUS' ELSE area_name
 		END AS area_name_,
 		sales_type,
 		Customer_Type,
@@ -111,11 +118,12 @@ CROSS JOIN (
 		INDUSTRY_KEY,
 		CONCAT(MarketSector, '-', MaterialType) AS MappingID 
 	FROM EDW_ANALYTICS.dbo.invoiceDataNew
-	WHERE YEAR(MTD) = YEAR(GETDATE())
-	AND CASE WHEN (area_name LIKE '%Java' and MaterialType IN ('MACHINE', 'FORK_LIFT')) THEN 'Java' WHEN (area_name LIKE '%Sumatera' and MaterialType IN ('MACHINE', 'FORK_LIFT')) THEN 'Sumatera' ELSE area_name END IS NOT NULL
+	--WHERE FORMAT(MTD, 'yyyyMM') = FORMAT(CURRENT_TIMESTAMP, 'yyyyMM')
+	WHERE FORMAT(MTD, 'yyyyMM') = '202111'
+	AND CASE WHEN (area_name LIKE '%Java' and MaterialType IN ('MACHINE', 'FORK_LIFT')) THEN 'Java' WHEN (area_name LIKE '%Sumatera' and MaterialType IN ('MACHINE', 'FORK_LIFT')) THEN 'Sumatera' WHEN area_name = 'Trakindo Utama' then 'TUS' ELSE area_name END IS NOT NULL
 	GROUP BY 
-		MONTH(MTD), 
-		CASE WHEN (area_name LIKE '%Java' and MaterialType IN ('MACHINE', 'FORK_LIFT')) THEN 'Java' WHEN (area_name LIKE '%Sumatera' and MaterialType IN ('MACHINE', 'FORK_LIFT')) THEN 'Sumatera' ELSE area_name END,
+		FORMAT(MTD, 'yyyyMM'), 
+		CASE WHEN (area_name LIKE '%Java' and MaterialType IN ('MACHINE', 'FORK_LIFT')) THEN 'Java' WHEN (area_name LIKE '%Sumatera' and MaterialType IN ('MACHINE', 'FORK_LIFT')) THEN 'Sumatera' WHEN area_name = 'Trakindo Utama' then 'TUS' ELSE area_name END,
 		sales_type,
 		Customer_Type,
 		ProductModel,
@@ -158,7 +166,8 @@ SELECT
 	MappingID,
 	invProgress AS CatGroup,
 	Forecasted,
-	Unforecasted
+	Unforecasted,
+	Carried_Over
 FROM
 (
 --Start of pivottable
@@ -172,7 +181,7 @@ SELECT
 	INDUSTRY_KEY,
 	MappingID,
 	invProgress,
-	[Forecasted], [Unforecasted]
+	[Forecasted], [Unforecasted], [Carried_Over]
 FROM
 (
 --Start of TableSource
@@ -183,6 +192,7 @@ SELECT
 		END AS SalesDocument_,
 	CASE
 		WHEN isForecast = 'Yes' THEN 'Forecasted'
+		WHEN isForecast = 'Carried Over' THEN 'Carried_Over'
 		ELSE 'Unforecasted'
 		END AS invStatus,
 	CASE
@@ -225,10 +235,12 @@ SELECT
 			AND (ConfidenceLevel >= 75 or ConfidenceLevel IS NULL) THEN 'Workable SO (DP Paid)'
 
 		ELSE 'High Confidence' END AS invProgress,
-	MONTH(MTD) AS MonthDeliveryDate,
+	FORMAT(MTD, 'yyyyMM') AS MonthDeliveryDate,
 	CASE 
 		WHEN (area_name LIKE '%Java' and MaterialType IN ('MACHINE', 'FORK_LIFT')) THEN 'Java'
-		WHEN (area_name LIKE '%Sumatera' and MaterialType IN ('MACHINE', 'FORK_LIFT')) THEN 'Sumatera' ELSE area_name
+		WHEN (area_name LIKE '%Sumatera' and MaterialType IN ('MACHINE', 'FORK_LIFT')) THEN 'Sumatera' 
+		WHEN area_name = 'Trakindo Utama' then 'TUS'
+		ELSE area_name
 	END AS area_name_,
 	sales_type,
 	Customer_Type,
@@ -238,11 +250,12 @@ SELECT
 	CONCAT(MarketSector, '-', MaterialType) AS MappingID
 
 FROM EDW_ANALYTICS.dbo.invoiceDataNew
-WHERE YEAR(MTD) = YEAR(GETDATE()) --End of TableSource
+--WHERE FORMAT(MTD, 'yyyyMM') = FORMAT(CURRENT_TIMESTAMP, 'yyyyMM') 
+WHERE FORMAT(MTD, 'yyyyMM') = '202111' --End of TableSource
 ) AS TableSource
 PIVOT(
 	COUNT(SalesDocument_)
-	FOR invStatus IN([Forecasted], [Unforecasted])
+	FOR invStatus IN([Forecasted], [Unforecasted], [Carried_Over])
 ) AS pivottable --End of pivottable
 ) AS TableInvoice --End of TableInvoice
 
@@ -260,7 +273,7 @@ SELECT
 	INDUSTRY_KEY,
 	MappingID,
 	'Total' AS CatGroup,
-	[Forecasted], [Unforecasted]
+	[Forecasted], [Unforecasted], [Carried_Over]
 FROM
 (
 --Start of TableTotalSource
@@ -271,12 +284,15 @@ SELECT
 		END AS SalesDocument_,
 	CASE
 		WHEN isForecast = 'Yes' THEN 'Forecasted'
+		WHEN isForecast = 'Carried Over' THEN 'Carried_Over'
 		ELSE 'Unforecasted'
 		END AS invStatus,
-	MONTH(MTD) AS MonthDeliveryDate,
+	FORMAT(MTD, 'yyyyMM') AS MonthDeliveryDate,
 	CASE 
 		WHEN (area_name LIKE '%Java' and MaterialType IN ('MACHINE', 'FORK_LIFT')) THEN 'Java'
-		WHEN (area_name LIKE '%Sumatera' and MaterialType IN ('MACHINE', 'FORK_LIFT')) THEN 'Sumatera' ELSE area_name
+		WHEN (area_name LIKE '%Sumatera' and MaterialType IN ('MACHINE', 'FORK_LIFT')) THEN 'Sumatera' 
+		WHEN area_name = 'Trakindo Utama' then 'TUS'
+		ELSE area_name
 	END AS area_name_,
 	sales_type,
 	Customer_Type,
@@ -286,11 +302,12 @@ SELECT
 	CONCAT(MarketSector, '-', MaterialType) AS MappingID
 
 FROM EDW_ANALYTICS.dbo.invoiceDataNew
-WHERE YEAR(MTD) = YEAR(GETDATE()) --End of TableTotalSource
+--WHERE FORMAT(MTD, 'yyyyMM') = FORMAT(CURRENT_TIMESTAMP, 'yyyyMM') 
+WHERE FORMAT(MTD, 'yyyyMM') = '202111' --End of TableTotalSource
 ) AS TableTotalSource
 PIVOT(
 	COUNT(SalesDocument_)
-	FOR invStatus IN([Forecasted], [Unforecasted])
+	FOR invStatus IN([Forecasted], [Unforecasted], [Carried_Over])
 ) AS PivotTableTotalSource --End of PivotTableTotalSource
 ) AS table_union
 ) AS table_union1 --End of table_union1
