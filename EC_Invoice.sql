@@ -1,4 +1,4 @@
-delete from EDW_ANALYTICS.dbo.invoicedatanew where format(MTD,'yyyyMM') = format(CURRENT_TIMESTAMP,'yyyyMM');
+--delete from EDW_ANALYTICS.dbo.invoiceDataNew where format(MTD,'yyyyMM') = '202110';
 
 --CTE Forecast Daily
 with forecaseDaily as(
@@ -280,7 +280,7 @@ where 1=1
 -- and FORMAT(b.billing_date, 'yyyy-MM') = '2021-08'  
 and FORMAT (b.billing_date, 'yyyy') >= format(CURRENT_TIMESTAMP, 'yyyy')  
 and ScoreLog.SALE_TYPE  in (1,3,5) 
-and ScoreLog.SCORE_ERROR = 'N'
+--and ScoreLog.SCORE_ERROR = 'N'
 )
 --CTE Order Tracking ST3/ST5
 ,st3 as (
@@ -326,7 +326,10 @@ where a.SCORE_ERROR = 'N' and a.SALE_TYPE in (3,5) and b.release_apprv = 'X'
 ,invoiced as (
 select 
 	distinct a.*,
-	das.area_name,
+	case 
+		when das.area_name like '%Java' and MaterialType in ('MACHINE', 'FORK_LIFT') then 'Java'
+		when das.area_name like '%Sumatera' and MaterialType in ('MACHINE', 'FORK_LIFT') then 'Sumatera'
+	else das.area_name end as area_name,
 	case when das.area_name like '% MA' Then 'Major Account' else 'Retail Account' end Customer_Type,
 	case 
 		when das.area_name like '% MA' Then CICGroups 
@@ -398,7 +401,7 @@ left join logscore ls on ls.sernr = i.serialnumber and ls.billing_date = i.billi
 
 where 1=1
 --and opportunityType in ('Opp  Machine','Opp  Engine','Opp  ForkLift')
-and format(i.BillingDate,'yyyyMM') = format(CURRENT_TIMESTAMP,'yyyyMM')
+and format(i.BillingDate,'yyyyMM') = '202110'
 --and format(i.BillingDate,'yyyy') =format(CURRENT_TIMESTAMP,'yyyy')
 and left(MaterialNumber, 2) in ('M1','E1','F1')
 and (ls.hitung = 1 or left(MaterialNumber, 2) = 'F1')
@@ -417,7 +420,10 @@ left join EDW_ANALYTICS.dbo.dim_area_store das on das.sales_code = a.sales_off_c
 ,pp_progress as (
 select 
 	distinct a.*,
-	das.area_name,
+	case 
+		when das.area_name like '%Java' and MaterialType in ('MACHINE', 'FORK_LIFT') then 'Java'
+		when das.area_name like '%Sumatera' and MaterialType in ('MACHINE', 'FORK_LIFT') then 'Sumatera'
+	else das.area_name end as area_name,
 	case when das.area_name like '% MA' Then 'Major Account' else 'Retail Account' end Customer_Type,
 	case 
 		when das.area_name like '% MA' Then CICGroups 
@@ -484,7 +490,7 @@ left join EDW_ANALYTICS.dbo.dim_company_map dcm on dcm.CompanyName = f.accountna
 
 where 1=1
 and f.opportunityType in ('Opp  Machine','Opp  Engine','Opp  ForkLift')
-and format(f.deliverydate,'yyyyMM') = format(CURRENT_TIMESTAMP,'yyyyMM')
+and format(f.deliverydate,'yyyyMM') = '202110'
 and f.confidencelevel>=75
 and f.Category_ID in ('M1','E1','F1')
 and f.forecast ='YES'
@@ -496,7 +502,10 @@ left join EDW_ANALYTICS.dbo.dim_area_store das on das.sales_code = a.sales_off_c
 ,st3_invoiced as (
 select 
 	distinct a.*,
-	das.area_name,
+	case 
+		when das.area_name like '%Java' and MaterialType in ('MACHINE', 'FORK_LIFT') then 'Java'
+		when das.area_name like '%Sumatera' and MaterialType in ('MACHINE', 'FORK_LIFT') then 'Sumatera'
+	else das.area_name end as area_name,
 	case when das.area_name like '% MA' Then 'Major Account' else 'Retail Account' end Customer_Type,
 	case 
 		when das.area_name like '% MA' Then CICGroups 
@@ -664,7 +673,7 @@ LEFT JOIN EDW_ANALYTICS.dbo.dim_area_store das ON das.sales_code = st3.sales_cod
 WHERE 1=1
 --AND f.opportunityType IN ('Opp  Rental')
 --AND f.Category_ID in ('M1','E1','F1')
-and format(st3.SCORE_DATE,'yyyyMM') =format(CURRENT_TIMESTAMP,'yyyyMM')
+and format(st3.SCORE_DATE,'yyyyMM') = '202110'
 AND st3.BAST_NO IS NOT NULL AND st3.BAST_NO <> ''
 ) a 
 left join EDW_ANALYTICS.dbo.dim_area_store das on das.sales_code = a.sales_off_code
@@ -673,7 +682,10 @@ left join EDW_ANALYTICS.dbo.dim_area_store das on das.sales_code = a.sales_off_c
 ,st3_progress as (
 select 
 	distinct a.*,
-	das.area_name,
+	case 
+		when das.area_name like '%Java' and MaterialType in ('MACHINE', 'FORK_LIFT') then 'Java'
+		when das.area_name like '%Sumatera' and MaterialType in ('MACHINE', 'FORK_LIFT') then 'Sumatera'
+	else das.area_name end as area_name,
 	case when das.area_name like '% MA' Then 'Major Account' else 'Retail Account' end Customer_Type,
 	case 
 		when das.area_name like '% MA' Then CICGroups 
@@ -846,7 +858,7 @@ AND f.sales_type in ('ST3','ST5')
 AND f.confidencelevel >= 75
 AND f.Category_ID in ('M1','E1','F1')
 AND f.forecast ='YES'
-and format(f.deliverydate,'yyyyMM') =format(CURRENT_TIMESTAMP,'yyyyMM')
+and format(f.deliverydate,'yyyyMM') = '202110'
 AND (st3.BAST_NO IS NULL OR st3.BAST_NO = '')
 ) a 
 left join EDW_ANALYTICS.dbo.dim_area_store das on das.sales_code = a.sales_off_code
@@ -855,7 +867,10 @@ left join EDW_ANALYTICS.dbo.dim_area_store das on das.sales_code = a.sales_off_c
 ,locked_forecast_progress as (
 select 
 	distinct a.*,
-	das.area_name,
+	case 
+		when das.area_name like '%Java' and MaterialType in ('MACHINE', 'FORK_LIFT') then 'Java'
+		when das.area_name like '%Sumatera' and MaterialType in ('MACHINE', 'FORK_LIFT') then 'Sumatera'
+	else das.area_name end as area_name,
 	case when das.area_name like '% MA' Then 'Major Account' else 'Retail Account' end Customer_Type,
 	case 
 		when das.area_name like '% MA' Then CICGroups 
@@ -910,7 +925,7 @@ left join EDW_ANALYTICS.dbo.dim_area_store das on das.sales_code = c.SalesOffice
 
 where 1=1
 and c.opportunityType in ('Opp  Machine','Opp  Engine','Opp  ForkLift')
-and format(c.deliverydate,'yyyy') = '2021'
+and format(c.deliverydate,'yyyyMM') = '202110'
 and c.confidencelevel>=75
 and c.Category_ID in ('M1','E1','F1')
 and c.forecast ='YES'
@@ -979,16 +994,22 @@ from (
 	where invd.SalesDocument is null
 	) b
 left join 
-(select c1.*, c2.area_name, 
-ROW_NUMBER() OVER(PARTITION BY format(c1.DeliveryDate, 'yyyy') ,format(c1.DeliveryDate, 'MM'),c1.producthierarchy, c2.area_name ORDER BY format(c1.DeliveryDate, 'yyyy') ASC,format(c1.DeliveryDate, 'MM') ASC, c1.producthierarchy ASC, c2.area_name ASC) AS Row#
-from EDW_ANALYTICS.dbo.forecast c1 left join EDW_ANALYTICS.dbo.dim_area_store c2 on c1.sales_off_code = c2.sales_code where AccountID = 1) as c 
+(
+select *, ROW_NUMBER() OVER(PARTITION BY format(c3.DeliveryDate, 'yyyy') ,format(c3.DeliveryDate, 'MM'),c3.producthierarchy, c3.area_name ORDER BY format(c3.DeliveryDate, 'yyyy') ASC,format(c3.DeliveryDate, 'MM') ASC, c3.producthierarchy ASC, c3.area_name ASC) AS Row#
+from (
+	select c1.*, case when c2.area_name like '%Java' and left(c1.ProductHierarchy,2) in ('M1', 'F1') then 'Java' when c2.area_name like '%Sumatera' and left(c1.ProductHierarchy,2) in ('M1', 'F1') then 'Sumatera' else c2.area_name end as area_name
+	from EDW_ANALYTICS.dbo.forecast c1 
+	left join EDW_ANALYTICS.dbo.dim_area_store c2 on c1.sales_off_code = c2.sales_code 
+	where AccountID = 1
+	) as c3
+) as c
 on b.ProductHierarchy = c.ProductHierarchy and b.area_name = c.area_name and format(b.MTD, 'yyyy') = format(c.DeliveryDate, 'yyyy') and format(b.MTD, 'MM') = format(c.DeliveryDate, 'MM') and b.Row# = c.Row#
 where c.OpportunityID is not null
 )
 
 -----------------------------------------------------------------------------
 
-insert into EDW_ANALYTICS.dbo.invoiceDataNew
+--insert into EDW_ANALYTICS.dbo.invoiceDataNew
 select * 
 --into EDW_ANALYTICS.dbo.invoiceDataNew
 from (
@@ -1008,11 +1029,15 @@ from (
 	where invd.SalesDocument is null
 	) b
 left join 
-(select c1.*, c2.area_name, 
-ROW_NUMBER() OVER(PARTITION BY format(c1.DeliveryDate, 'yyyy') ,format(c1.DeliveryDate, 'MM'),c1.producthierarchy, c2.area_name ORDER BY format(c1.DeliveryDate, 'yyyy') ASC,format(c1.DeliveryDate, 'MM') ASC, c1.producthierarchy ASC, c2.area_name ASC) AS Row#
-from EDW_ANALYTICS.dbo.forecast c1 
-left join EDW_ANALYTICS.dbo.dim_area_store c2 on c1.sales_off_code = c2.sales_code 
-where AccountID = 1) as c 
+(
+select *, ROW_NUMBER() OVER(PARTITION BY format(c3.DeliveryDate, 'yyyy') ,format(c3.DeliveryDate, 'MM'),c3.producthierarchy, c3.area_name ORDER BY format(c3.DeliveryDate, 'yyyy') ASC,format(c3.DeliveryDate, 'MM') ASC, c3.producthierarchy ASC, c3.area_name ASC) AS Row#
+from (
+	select c1.*, case when c2.area_name like '%Java' and left(c1.ProductHierarchy,2) in ('M1', 'F1') then 'Java' when c2.area_name like '%Sumatera' and left(c1.ProductHierarchy,2) in ('M1', 'F1') then 'Sumatera' else c2.area_name end as area_name
+	from EDW_ANALYTICS.dbo.forecast c1 
+	left join EDW_ANALYTICS.dbo.dim_area_store c2 on c1.sales_off_code = c2.sales_code 
+	where AccountID = 1
+	) as c3
+) as c 
 on b.ProductHierarchy = c.ProductHierarchy and b.area_name = c.area_name and format(b.MTD, 'yyyy') = format(c.DeliveryDate, 'yyyy') and format(b.MTD, 'MM') = format(c.DeliveryDate, 'MM')and b.Row# = c.Row#
 
 --ST3 Invoiced
@@ -1031,13 +1056,16 @@ from (
 	where invd.SalesDocument is null
 	) b
 left join 
-(select c1.*, c2.area_name, 
-ROW_NUMBER() OVER(PARTITION BY format(c1.DeliveryDate, 'yyyy') ,format(c1.DeliveryDate, 'MM'),c1.producthierarchy, c2.area_name ORDER BY format(c1.DeliveryDate, 'yyyy') ASC,format(c1.DeliveryDate, 'MM') ASC, c1.producthierarchy ASC, c2.area_name ASC) AS Row#
-from EDW_ANALYTICS.dbo.forecast c1 
-left join EDW_ANALYTICS.dbo.dim_area_store c2 on c1.sales_off_code = c2.sales_code 
-left join tba_used c3 on c1.OpportunityID = c3.OpportunityID 
-where AccountID = 1
-and c3.OpportunityID is null) as c 
+(
+select *, ROW_NUMBER() OVER(PARTITION BY format(c3.DeliveryDate, 'yyyy') ,format(c3.DeliveryDate, 'MM'),c3.producthierarchy, c3.area_name ORDER BY format(c3.DeliveryDate, 'yyyy') ASC,format(c3.DeliveryDate, 'MM') ASC, c3.producthierarchy ASC, c3.area_name ASC) AS Row#
+from (
+	select c1.*, case when c2.area_name like '%Java' and left(c1.ProductHierarchy,2) in ('M1', 'F1') then 'Java' when c2.area_name like '%Sumatera' and left(c1.ProductHierarchy,2) in ('M1', 'F1') then 'Sumatera' else c2.area_name end as area_name
+	from EDW_ANALYTICS.dbo.forecast c1 
+	left join EDW_ANALYTICS.dbo.dim_area_store c2 on c1.sales_off_code = c2.sales_code
+	left join tba_used c4 on c1.OpportunityID = c4.OpportunityID
+	where AccountID = 1 and c4.OpportunityID is null
+	) as c3
+) as c 
 on b.ProductHierarchy = c.ProductHierarchy and b.area_name = c.area_name and format(b.MTD, 'yyyy') = format(c.DeliveryDate, 'yyyy') and format(b.MTD, 'MM') = format(c.DeliveryDate, 'MM')and b.Row# = c.Row#
 
 --Mapping Forecasted/Unforecasted Progress
@@ -1063,10 +1091,10 @@ on b.AccountID = c.AccountID and b.ProductHierarchy = c.ProductHierarchy and for
 
 
 ) test
---where month(MTD) = 9 and year(MTD) = 2021
+--where month(MTD) = 10 and year(MTD) = 2021
 --and BillingDocument is not null
 --and MaterialType = 'MACHINE'
 --and isForecast = 'Yes'
 ;
 
-EXEC EDW_ANALYTICS.dbo.sp_invoicetransform;
+--EXEC EDW_ANALYTICS.dbo.sp_invoicetransform;
