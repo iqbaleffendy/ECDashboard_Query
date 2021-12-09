@@ -6,7 +6,7 @@ select
     oppt.LEAD_ID LeadID,
     oppt.OPPORTUNITY_ID OpportunityID,
     oppt.ITEM_NO OpportunityItemNo,
-	oppt.SO_ID SOID,
+    oppt.SO_ID SOID,
     oppt.ITEM_NO_SO SOItemNo,
     cic.CIC_Group CICGroup,
     da.INDUSTRY_KEY
@@ -44,11 +44,15 @@ select
 from (
 
 select
-	b.billing_date as MTD,
+	--b.billing_date as MTD,
 	--case 
 	--	when ScoreLog.SCORE_DATE is null then b.BILLING_DATE
 	--	when (EOMONTH(b.Billing_Date) = b.Billing_Date and DATEADD(DAY,1,EOMONTH(b.Billing_Date)) = ScoreLog.SCORE_DATE) then b.Billing_Date
 	--else ScoreLog.SCORE_DATE end as MTD,
+	case 
+		when DATEPART(HOUR, ScoreLog.SCORE_TIME) < 4 then DATEADD(DAY, -1, ScoreLog.SCORE_DATE)
+		when ScoreLog.SCORE_DATE is null then b.BILLING_DATE
+		else ScoreLog.SCORE_DATE end as MTD,
 	cast(a.VBELN_VBAP as int) SalesDocument, 
 	a.POSNR_VBAP SalesDocumentItem,
 	a.AUART SalesDocumentType,
@@ -64,9 +68,10 @@ select
 	ScoreLog.SCORE_DATE,
 	ScoreLog.SCORE_TIME,
 	ScoreLog.SCORE_ERROR,
-	case when ScoreLog.SCORE_DATE < DATEFROMPARTS(YEAR(b.BILLING_DATE), MONTH(b.BILLING_DATE)+1, 1) and format(b.billing_date, 'yyyy-MM') <> format(ScoreLog.SCORE_DATE, 'yyyy-MM') and ScoreLog.CUST_NAME_OR_RENT_CUST_NAME = b.CUST_NAME then 'BACK OUT'
-		when ScoreLog.SCORE_DATE >= DATEFROMPARTS(YEAR(b.BILLING_DATE), MONTH(b.BILLING_DATE)+1, 1) and format(b.billing_date, 'yyyy-MM') <> format(ScoreLog.SCORE_DATE, 'yyyy-MM') and ScoreLog.CUST_NAME_OR_RENT_CUST_NAME = b.CUST_NAME then 'NEW UNIT'
-		when ScoreLog.SCORE_DATE  < DATEFROMPARTS(YEAR(b.BILLING_DATE), MONTH(b.BILLING_DATE)+1, 1) and format(b.billing_date, 'yyyy-MM') <> format(ScoreLog.SCORE_DATE, 'yyyy-MM') and ScoreLog.CUST_NAME_OR_RENT_CUST_NAME <> b.CUST_NAME then 'BACK OUT-NEW CUSTOMER'
+	case when ScoreLog.SCORE_DATE < DATEFROMPARTS(YEAR(b.BILLING_DATE), MONTH(b.BILLING_DATE)+1, 1) and format(b.billing_date, 'yyyy-MM') <> format(ScoreLog.SCORE_DATE, 'yyyy-MM') and ScoreLog.CUST_NAME_OR_RENT_CUST_NAME = b.CUST_NAME and ScoreLog.SCORE_ERROR = 'N' then 'BACK OUT'
+		when ScoreLog.SCORE_DATE >= DATEFROMPARTS(YEAR(b.BILLING_DATE), MONTH(b.BILLING_DATE)+1, 1) and format(b.billing_date, 'yyyy-MM') <> format(ScoreLog.SCORE_DATE, 'yyyy-MM') and ScoreLog.CUST_NAME_OR_RENT_CUST_NAME = b.CUST_NAME and ScoreLog.SCORE_ERROR = 'N' then 'NEW UNIT'
+		when ScoreLog.SCORE_DATE  < DATEFROMPARTS(YEAR(b.BILLING_DATE), MONTH(b.BILLING_DATE)+1, 1) and format(b.billing_date, 'yyyy-MM') <> format(ScoreLog.SCORE_DATE, 'yyyy-MM') and ScoreLog.CUST_NAME_OR_RENT_CUST_NAME <> b.CUST_NAME and ScoreLog.SCORE_ERROR = 'N' then 'EX-BACK OUT'
+		when ScoreLog.SCORE_ERROR <> 'N' and ScoreLog.SCORE_DATE is not null and a.AUART = 'ZEPP' then 'FAILED'
 		when ScoreLog.SCORE_DATE is null and a.AUART = 'ZEPP' then 'FAILED'
 		when ScoreLog.SCORE_DATE is null and a.AUART <> 'ZEPP' then 'OTHER DEALER'
 	else 'NEW UNIT' end Status,
@@ -100,12 +105,13 @@ left join [LS_BI_PROD].EDW_STG_SAP_ECC_DAILY.dbo.ZLDB_F_INV_SOLD b on a.VBELN_VB
 left join
 (
 select * from (
-	select SCORE_DATE,SCORE_TIME,PRIME_PRODUCT_SERIAL_NUMBER, CUSTOMER_CODE, CUST_NAME_OR_RENT_CUST_NAME, SCORE_ERROR, 'M1' AS MATERIAL_TYPE, SALE_TYPE from [LS_BI_PROD].EDW_STG_SAP_CRM_DAILY.dbo.zldb_score_mach union
-	select SCORE_DATE,SCORE_TIME,PRIME_PRODUCT_SERIAL_NUMBER, CUSTOMER_CODE, CUST_NAME_RENT_CUST_NAME, SCORE_ERROR, 'E1' AS MATERIAL_TYPE, SALE_TYPE  from [LS_BI_PROD].EDW_STG_SAP_CRM_DAILY.dbo.zldb_score_engn
+	select SCORE_DATE,SCORE_TIME,PRIME_PRODUCT_SERIAL_NUMBER, CUSTOMER_CODE, CUST_NAME_OR_RENT_CUST_NAME, SCORE_ERROR, 'M1' AS MATERIAL_TYPE, SALE_TYPE, ROW_NUMBER() OVER(PARTITION BY PRIME_PRODUCT_SERIAL_NUMBER ORDER BY SCORE_DATE DESC, SCORE_TIME DESC) as RowNum from [LS_BI_PROD].EDW_STG_SAP_CRM_DAILY.dbo.zldb_score_mach union
+	select SCORE_DATE,SCORE_TIME,PRIME_PRODUCT_SERIAL_NUMBER, CUSTOMER_CODE, CUST_NAME_RENT_CUST_NAME, SCORE_ERROR, 'E1' AS MATERIAL_TYPE, SALE_TYPE, ROW_NUMBER() OVER(PARTITION BY PRIME_PRODUCT_SERIAL_NUMBER ORDER BY SCORE_DATE DESC, SCORE_TIME DESC) as RowNum  from [LS_BI_PROD].EDW_STG_SAP_CRM_DAILY.dbo.zldb_score_engn
 	) as a
 	where CUSTOMER_CODE is not null
 	and SALE_TYPE in (1,3,5)
-	and SCORE_ERROR = 'N'
+	and RowNum = 1
+	--and SCORE_ERROR = 'N'
 ) as ScoreLog on b.SERNR = ScoreLog.PRIME_PRODUCT_SERIAL_NUMBER
 left join (select * from [LS_BI_PROD].EDW_ANALYTICS.CRM.dim_opp_product_material where product_material_code not in ('N/A', 'Unknown') and left(product_hierarchy, 2) in ('M1','E1','F1')) dpm on CAST(a.MATNR_VBAP AS INT) = CAST (dpm.PRODUCT_MATERIAL_CODE AS INT)
 left join (select DISTINCT cic_group_id,cic_group from ls_bi_prod.EDW_DIMENSION.CRM.Dim_CIC) cic on cic.cic_group_id = b.brsch
