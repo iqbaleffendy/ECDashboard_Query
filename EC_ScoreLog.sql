@@ -1,6 +1,6 @@
-delete from EDW_ANALYTICS.dbo.EC_fact_scorelog where format(MTD, 'yyyy-MM') = format(CURRENT_TIMESTAMP, 'yyyy-MM');
+delete from EDW_ANALYTICS.CRM.EC_fact_scorelog where format(MTD, 'yyyy-MM') = format(CURRENT_TIMESTAMP, 'yyyy-MM');
 
-with forecaseDaily as(
+	with forecaseDaily as(
 select
     oppt.LEAD_ID LeadID,
     oppt.opp_id OpportunityID,
@@ -21,7 +21,7 @@ where 1=1
 and format(CONVERT(date, CAST(oppt.DELIVERY_DATE_KEY AS varchar)),'yyyy')=format(CURRENT_TIMESTAMP,'yyyy')
            
 )
-insert into EDW_ANALYTICS.dbo.EC_fact_scorelog
+insert into EDW_ANALYTICS.CRM.EC_fact_scorelog
 select 
 	distinct
 	case when (sales_type = 'PP' and Status in ('BACK OUT', 'EX-BACK OUT')) then BillingDate
@@ -111,15 +111,15 @@ select * from (
 	--and SCORE_ERROR = 'N'
 ) as ScoreLog on b.SERNR = ScoreLog.PRIME_PRODUCT_SERIAL_NUMBER
 left join forecaseDaily f on cast(a.VBELN_VBAP as int) = f.SOID and a.POSNR_VBAP = f.SOItemNo 
-left join EDW_ANALYTICS.dbo.EC_dim_area_sales d on a.SALID  = d.sales_id
-left join EDW_ANALYTICS.dbo.EC_dim_company_exception_map dcm on dcm.CompanyName = a.Name2_Payer
+left join EDW_ANALYTICS.CRM.EC_dim_area_sales d on a.SALID  = d.sales_id
+left join EDW_ANALYTICS.CRM.EC_dim_company_exception_map dcm on dcm.CompanyName = a.Name2_Payer
 
 where 1=1 
 --and (FORMAT(b.billing_date, 'yyyy') = format(CURRENT_TIMESTAMP, 'yyyy') or FORMAT(ScoreLog.SCORE_DATE, 'yyyy') = format(CURRENT_TIMESTAMP, 'yyyy')) 
 and (FORMAT(b.billing_date, 'yyyyMM') = format(CURRENT_TIMESTAMP, 'yyyyMM') or FORMAT(ScoreLog.SCORE_DATE, 'yyyyMM') = format(CURRENT_TIMESTAMP, 'yyyyMM')) 
 and left(b.MFRPN, 2) in ('M1','E1')
 
-) a left join EDW_ANALYTICS.dbo.EC_dim_area_store das on das.sales_code = a.sales_off_code
+) a left join EDW_ANALYTICS.CRM.EC_dim_area_store das on das.sales_code = a.sales_off_code
 
 UNION
 
@@ -180,7 +180,7 @@ select
 	from [LS_BI_PROD].EDW_STG_SAP_CRM_DAILY.dbo.zldb_score_mach a
 left join [LS_BI_PROD].EDW_STG_SAP_ECC_DAILY.dbo.ZLDB_V_ODRRUE_BW b 
 on a.PRIME_PRODUCT_SERIAL_NUMBER = b.sernr
-left join EDW_ANALYTICS.dbo.EC_dim_area_store c 
+left join EDW_ANALYTICS.CRM.EC_dim_area_store c 
 on b.vkbur = c.sales_code
 where a.SCORE_ERROR = 'N' and a.SALE_TYPE in (3,5) and b.release_apprv = 'X'
 --and format(a.SCORE_DATE,'yyyyMM') in (format(DATEADD(MONTH, -1, CURRENT_TIMESTAMP),'yyyyMM'), format(CURRENT_TIMESTAMP,'yyyyMM'))
@@ -199,18 +199,18 @@ select
 	from [LS_BI_PROD].EDW_STG_SAP_CRM_DAILY.dbo.zldb_score_engn a
 left join [LS_BI_PROD].EDW_STG_SAP_ECC_DAILY.dbo.ZLDB_V_ODRRUE_BW b 
 on a.PRIME_PRODUCT_SERIAL_NUMBER = b.sernr
-left join EDW_ANALYTICS.dbo.EC_dim_area_store c 
+left join EDW_ANALYTICS.CRM.EC_dim_area_store c 
 on b.vkbur = c.sales_code
 where a.SCORE_ERROR = 'N' and a.SALE_TYPE in (3,5) and b.release_apprv = 'X'
 ) as st3
 LEFT JOIN forecaseDaily AS f ON st3.VBELN_VA = f.SOID AND st3.POSNR_VA = f.SOItemNo
-LEFT JOIN EDW_ANALYTICS.dbo.EC_dim_area_store das ON das.sales_code = st3.sales_code
+LEFT JOIN EDW_ANALYTICS.CRM.EC_dim_area_store das ON das.sales_code = st3.sales_code
 
 where 1=1 
 --and FORMAT(st3.SCORE_DATE, 'yyyy') = FORMAT(CURRENT_TIMESTAMP, 'yyyy')
 and FORMAT(st3.SCORE_DATE, 'yyyyMM') = FORMAT(CURRENT_TIMESTAMP, 'yyyyMM')
 
-) a left join EDW_ANALYTICS.dbo.EC_dim_area_store das on das.sales_code = a.sales_off_code
+) a left join EDW_ANALYTICS.CRM.EC_dim_area_store das on das.sales_code = a.sales_off_code
 
 ) as table1
 ;

@@ -1,6 +1,6 @@
-DELETE FROM EDW_ANALYTICS.dbo.EC_fact_invoice_progress where MonthDeliveryDate = format(current_timestamp, 'yyyyMM');
+DELETE FROM EDW_ANALYTICS.CRM.EC_fact_invoice_progress where MonthDeliveryDate = format(current_timestamp, 'yyyyMM');
 
-INSERT INTO EDW_ANALYTICS.dbo.EC_fact_invoice_progress
+INSERT INTO EDW_ANALYTICS.CRM.EC_fact_invoice_progress
 SELECT
 	CatID,
 	MonthDeliveryDate,
@@ -99,7 +99,7 @@ FROM
 SELECT 
 	CatID, 
 	CatGroup 
-FROM EDW_ANALYTICS.dbo.EC_dim_invoice_progress_category
+FROM EDW_ANALYTICS.CRM.EC_dim_invoice_progress_category
 ) AS u2
 CROSS JOIN (
 	SELECT 
@@ -115,7 +115,7 @@ CROSS JOIN (
 		MaterialType,
 		INDUSTRY_KEY,
 		CONCAT(MarketSector, '-', MaterialType) AS MappingID 
-	FROM EDW_ANALYTICS.dbo.EC_fact_invoice
+	FROM EDW_ANALYTICS.CRM.EC_fact_invoice
 	WHERE FORMAT(MTD, 'yyyyMM') = FORMAT(CURRENT_TIMESTAMP, 'yyyyMM')
 	AND CASE WHEN (area_name LIKE '%Java' and MaterialType IN ('MACHINE', 'FORK_LIFT')) THEN 'Java' WHEN (area_name LIKE '%Sumatera' and MaterialType IN ('MACHINE', 'FORK_LIFT')) THEN 'Sumatera' WHEN area_name = 'Trakindo Utama' then 'TUS' ELSE area_name END IS NOT NULL
 	GROUP BY 
@@ -246,7 +246,7 @@ SELECT
 	INDUSTRY_KEY,
 	CONCAT(MarketSector, '-', MaterialType) AS MappingID
 
-FROM EDW_ANALYTICS.dbo.EC_fact_invoice
+FROM EDW_ANALYTICS.CRM.EC_fact_invoice
 WHERE FORMAT(MTD, 'yyyyMM') = FORMAT(CURRENT_TIMESTAMP, 'yyyyMM') --End of TableSource
 ) AS TableSource
 PIVOT(
@@ -297,7 +297,7 @@ SELECT
 	INDUSTRY_KEY,
 	CONCAT(MarketSector, '-', MaterialType) AS MappingID
 
-FROM EDW_ANALYTICS.dbo.EC_fact_invoice
+FROM EDW_ANALYTICS.CRM.EC_fact_invoice
 WHERE FORMAT(MTD, 'yyyyMM') = FORMAT(CURRENT_TIMESTAMP, 'yyyyMM') --End of TableTotalSource
 ) AS TableTotalSource
 PIVOT(
