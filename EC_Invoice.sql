@@ -1,4 +1,4 @@
---delete from EDW_ANALYTICS.CRM.EC_fact_invoice where format(MTD,'yyyyMM') = format(CURRENT_TIMESTAMP, 'yyyyMM');
+delete from EDW_ANALYTICS.CRM.EC_fact_invoice where format(MTD,'yyyyMM') = format(CURRENT_TIMESTAMP, 'yyyyMM');
 --delete from EDW_ANALYTICS.CRM.EC_fact_invoice where format(MTD,'yyyyMM') = '202111';
 
 --CTE Forecast Daily
@@ -1078,10 +1078,8 @@ from EDW_ANALYTICS.CRM.EC_fact_locked_forecast where AccountID <> 1) as c
 on b.AccountID = c.AccountID and b.ProductHierarchy = c.ProductHierarchy and format(b.MTD, 'yyyy') = format(c.DeliveryDate, 'yyyy') and format(b.MTD, 'MM') = format(c.DeliveryDate, 'MM')and b.Row# = c.Row#
 where c.OpportunityID is not null
 )
-
---CTE Invoiced PP that mapped as forecasted from Push Sales
-,pp_push_sales as (
-select b.*, case when c.OpportunityID is not null then 'Yes' else 'No' end as isForecast 
+,tba_used as (
+select c.OpportunityID, c.OpportunityItemNo
 from (
 	select 
 		a.*
@@ -1101,10 +1099,79 @@ from (
 	) as c3
 ) as c
 on b.ProductHierarchy = c.ProductHierarchy and b.area_name = c.area_name and format(b.MTD, 'yyyy') = format(c.DeliveryDate, 'yyyy') and format(b.MTD, 'MM') = format(c.DeliveryDate, 'MM') and b.Row# = c.Row#
+where c.OpportunityID is not null
+)
+,tba_used_st3 as (
+select c.OpportunityID, c.OpportunityItemNo
+from (
+	select 
+		a.*
+		,ROW_NUMBER() OVER(PARTITION BY format(a.MTD, 'yyyy'),format(a.MTD, 'MM'),a.producthierarchy, a.area_name ORDER BY format(a.MTD, 'yyyy') ASC,format(a.MTD, 'MM') ASC,a.producthierarchy ASC, a.area_name ASC, a.billingdocument desc) AS Row#
+	from st3_invoiced a 
+	left join st3_invoiced_forecasted invd on a.SalesDocument = invd.SalesDocument and a.SalesDocumentItem = invd.SalesDocumentItem
+	where invd.SalesDocument is null
+	) b
+left join 
+(
+select *, ROW_NUMBER() OVER(PARTITION BY format(c3.DeliveryDate, 'yyyy') ,format(c3.DeliveryDate, 'MM'),c3.producthierarchy, c3.area_name ORDER BY format(c3.DeliveryDate, 'yyyy') ASC,format(c3.DeliveryDate, 'MM') ASC, c3.producthierarchy ASC, c3.area_name ASC) AS Row#
+from (
+	select c1.*, case when c2.area_name like '%Java' and left(c1.ProductHierarchy,2) in ('M1', 'F1') then 'Java' when c2.area_name like '%Sumatera' and left(c1.ProductHierarchy,2) in ('M1', 'F1') then 'Sumatera' else c2.area_name end as area_name
+	from EDW_ANALYTICS.CRM.EC_fact_locked_forecast c1 
+	left join EDW_ANALYTICS.CRM.EC_dim_area_store c2 on c1.sales_off_code = c2.sales_code
+	left join tba_used c4 on c1.OpportunityID = c4.OpportunityID and c1.OpportunityItemNo = c4.OpportunityItemNo
+	where AccountID = 1 and c4.OpportunityID is null
+	) as c3
+) as c 
+on b.ProductHierarchy = c.ProductHierarchy and b.area_name = c.area_name and format(b.MTD, 'yyyy') = format(c.DeliveryDate, 'yyyy') and format(b.MTD, 'MM') = format(c.DeliveryDate, 'MM')and b.Row# = c.Row#
+where c.OpportunityID is not null
 )
 
---CTE Invoiced ST3/ST5 that mapped as forecasted from Push Sales
-,st3_push_sales as (
+-----------------------------------------------------------------------------------------------------------------------
+
+insert into EDW_ANALYTICS.CRM.EC_fact_invoice
+select * 
+from (
+
+--PP Invoiced Forecasted
+select * from invoiced_forecasted
+
+--PP Invoiced Carried Over
+union
+select * from invoiced_carriedover
+
+--PP Invoiced Forecasted using Customer Group
+union
+select * from invoiced_forecasted_customer_group
+
+--PP Invoiced Push Sales
+union
+select b.*, case when c.OpportunityID is not null then 'Yes' else 'No' end as isForecast 
+from (
+	select 
+		a.*
+		,ROW_NUMBER() OVER(PARTITION BY format(a.MTD, 'yyyy'),format(a.MTD, 'MM'),a.producthierarchy, a.area_name ORDER BY format(a.MTD, 'yyyy') ASC,format(a.MTD, 'MM') ASC,a.producthierarchy ASC, a.area_name ASC, a.billingdocument desc) AS Row#
+	from invoiced a 
+	left join (select * from invoiced_forecasted union select * from invoiced_carriedover union select * from invoiced_forecasted_customer_group) invd on a.SalesDocument = invd.SalesDocument and a.SalesDocumentItem = invd.SalesDocumentItem
+	where invd.SalesDocument is null
+	) b
+left join 
+(
+select *, ROW_NUMBER() OVER(PARTITION BY format(c3.DeliveryDate, 'yyyy') ,format(c3.DeliveryDate, 'MM'),c3.producthierarchy, c3.area_name ORDER BY format(c3.DeliveryDate, 'yyyy') ASC,format(c3.DeliveryDate, 'MM') ASC, c3.producthierarchy ASC, c3.area_name ASC) AS Row#
+from (
+	select c1.*, case when c2.area_name like '%Java' and left(c1.ProductHierarchy,2) in ('M1', 'F1') then 'Java' when c2.area_name like '%Sumatera' and left(c1.ProductHierarchy,2) in ('M1', 'F1') then 'Sumatera' else c2.area_name end as area_name
+	from EDW_ANALYTICS.CRM.EC_fact_locked_forecast c1 
+	left join EDW_ANALYTICS.CRM.EC_dim_area_store c2 on c1.sales_off_code = c2.sales_code 
+	where AccountID = 1
+	) as c3
+) as c 
+on b.ProductHierarchy = c.ProductHierarchy and b.area_name = c.area_name and format(b.MTD, 'yyyy') = format(c.DeliveryDate, 'yyyy') and format(b.MTD, 'MM') = format(c.DeliveryDate, 'MM')and b.Row# = c.Row#
+
+--ST3 Invoiced
+union
+select * from st3_invoiced_forecasted
+
+--ST3 Push Sales
+union
 select b.*, case when c.OpportunityID is not null then 'Yes' else 'No' end as isForecast 
 from (
 	select 
@@ -1121,15 +1188,14 @@ from (
 	select c1.*, case when c2.area_name like '%Java' and left(c1.ProductHierarchy,2) in ('M1', 'F1') then 'Java' when c2.area_name like '%Sumatera' and left(c1.ProductHierarchy,2) in ('M1', 'F1') then 'Sumatera' else c2.area_name end as area_name
 	from EDW_ANALYTICS.CRM.EC_fact_locked_forecast c1 
 	left join EDW_ANALYTICS.CRM.EC_dim_area_store c2 on c1.sales_off_code = c2.sales_code
-	left join (select OpportunityID, OpportunityItemNo from pp_push_sales where isForecast = 'Yes') c4 on c1.OpportunityID = c4.OpportunityID and c1.OpportunityItemNo = c4.OpportunityItemNo
+	left join tba_used c4 on c1.OpportunityID = c4.OpportunityID and c1.OpportunityItemNo = c4.OpportunityItemNo
 	where AccountID = 1 and c4.OpportunityID is null
 	) as c3
 ) as c 
 on b.ProductHierarchy = c.ProductHierarchy and b.area_name = c.area_name and format(b.MTD, 'yyyy') = format(c.DeliveryDate, 'yyyy') and format(b.MTD, 'MM') = format(c.DeliveryDate, 'MM')and b.Row# = c.Row#
-)
 
---CTE Progress that mapped as forecasted from Push Sales
-,progress_push_sales as (
+--Mapping Forecasted/Unforecasted Progress
+union
 select b.*, 
 case 
 	when c.OpportunityID is not null and c.FORECAST = 'Yes' then 'Yes'
@@ -1152,48 +1218,15 @@ from (
 	select c1.*, case when c2.area_name like '%Java' and left(c1.ProductHierarchy,2) in ('M1', 'F1') then 'Java' when c2.area_name like '%Sumatera' and left(c1.ProductHierarchy,2) in ('M1', 'F1') then 'Sumatera' else c2.area_name end as area_name
 	from EDW_ANALYTICS.CRM.EC_fact_locked_forecast c1 
 	left join EDW_ANALYTICS.CRM.EC_dim_area_store c2 on c1.sales_off_code = c2.sales_code
-	left join (select OpportunityID, OpportunityItemNo from pp_push_sales where isForecast = 'Yes' union select OpportunityID, OpportunityItemNo from st3_push_sales where isForecast = 'Yes') c4 on c1.OpportunityID = c4.OpportunityID and c1.OpportunityItemNo = c4.OpportunityItemNo
+	left join (select * from tba_used union select * from tba_used_st3) c4 on c1.OpportunityID = c4.OpportunityID and c1.OpportunityItemNo = c4.OpportunityItemNo
 	where AccountID = 1 and c4.OpportunityID is null
 	) as c3
 ) as c 
 on b.ProductHierarchy = c.ProductHierarchy and b.area_name = c.area_name and format(b.MTD, 'yyyy') = format(c.DeliveryDate, 'yyyy') and format(b.MTD, 'MM') = format(c.DeliveryDate, 'MM')and b.Row# = c.Row#
-)
 
------------------------------------------------------------------------------------------------------------------------
-
---insert into EDW_ANALYTICS.CRM.EC_fact_invoice
-select * 
-from (
-
---PP Invoiced Forecasted
-select * from invoiced_forecasted
-
---PP Invoiced Carried Over
-union
-select * from invoiced_carriedover
-
---PP Invoiced Forecasted using Customer Group
-union
-select * from invoiced_forecasted_customer_group
-
---PP Invoiced Push Sales
-union
-select * from pp_push_sales
-
---ST3 Invoiced
-union
-select * from st3_invoiced_forecasted
-
---ST3 Push Sales
-union
-select * from st3_push_sales
-
---Mapping Forecasted/Unforecasted Progress
-union
-select * from progress_push_sales
 
 ) test
 ;
 
--- EXEC EDW_ANALYTICS.CRM.sp_EC_Update_RateInvoiceActual;
--- EXEC EDW_ANALYTICS.CRM.sp_EC_Insert_InvoiceProgress;
+EXEC EDW_ANALYTICS.CRM.sp_EC_Update_RateInvoiceActual;
+EXEC EDW_ANALYTICS.CRM.sp_EC_Insert_InvoiceProgress;
