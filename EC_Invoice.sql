@@ -1129,7 +1129,7 @@ where c.OpportunityID is not null
 -----------------------------------------------------------------------------------------------------------------------
 
 insert into EDW_ANALYTICS.CRM.EC_fact_invoice
-select * 
+select *, GETDATE() AS ETL_DATE
 from (
 
 --PP Invoiced Forecasted

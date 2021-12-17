@@ -15,7 +15,8 @@ SELECT
 	Comparison As RunningTotals,
 	null_Forecasted AS Forecasted,
 	null_Unforecasted AS Unforcasted,
-	null_Carried_Over AS Carried_Over
+	null_Carried_Over AS Carried_Over,
+	GETDATE() AS ETL_DATE
 
 FROM
 (

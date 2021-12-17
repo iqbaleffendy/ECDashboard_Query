@@ -28,7 +28,8 @@ select
 	when sales_type in ('ST3', 'ST5') then SCORE_DATE
 	when SCORE_DATE is null then BillingDate
 	else SCORE_DATE end as MTD,
-	table1.*
+	table1.*,
+	GETDATE() AS ETL_DATE
 
 
 from (
