@@ -128,17 +128,17 @@ select
 		cast(VBELN_VBAP as int) SalesDocument, 
 		POSNR_VBAP SalesDocumentItem,
 		AUART SalesDocumentType,
-		uepos HigerLevelItem,
+		--uepos HigerLevelItem,
 		BSTKD_E SpaNo,
 		a.BSTKD PurchaseOrderNo,
 		BSTDK PurchaseOrderDate,
 		a.VKORG SalesOrganization,
-		a.SPART Division,
+		--a.SPART Division,
 		a.AREA Area,
 		a.VKBUR SalesOffice,
 		a.KUNNR_VBAK SoldToParty,
 		a.Gtext EndDestination,
-		a.Name1_bilpar BilltoPartyname,
+		--a.Name1_bilpar BilltoPartyname,
 		a.KUNNR_PAYER Payer,
 		a.Name2_Payer Payername,
 		a.Kunnr_finance FinancingCompany,
@@ -155,19 +155,19 @@ select
 		a.MVGR3 ApplicationCode,
 		cic.cic_group CICGroup,
 		a.DELDATE RequestDeliveryDate,
-		a.Payment TermsofPayment,
-		a.PAYMENTNOTE PaymentTermsNote,
+		--a.Payment TermsofPayment,
+		--a.PAYMENTNOTE PaymentTermsNote,
 		a.VTEXT Description,
 		a.NETWR Price,
 		a.MWSBP Tax ,
-		a.WAERK PDC_PDG_curr,
+		--a.WAERK PDC_PDG_curr,
 		a.SALID SalesmanID,
 		a.SALNAME SalesmanName,
-		a.DSALID DeliverySalesmanID,
-		a.DSALNAME DeliverySalesmanName,
-		a.MKTPGM Marketingprogram,
-		a.VCHR Voucher,
-		a.CCR CCRNo,
+		--a.DSALID DeliverySalesmanID,
+		--a.DSALNAME DeliverySalesmanName,
+		--a.MKTPGM Marketingprogram,
+		--a.VCHR Voucher,
+		--a.CCR CCRNo,
 		a.RLAPNO ReleaseApprovalNo,
 		a.RLAPDT ReleaseApprovalDate,
 		a.RLAPBY ReleaseApprovalBy,
@@ -179,8 +179,8 @@ select
 		 case when a.RELAPPR='X' THEN 'Yes' else 'No' end ReleaseApproval,
 		 case when a.FULLY='X' THEN 'Yes' else 'No' end FullyPaid,
 		 case when po.ZZLEASING_STAT = 'X' THEN 'Yes' else 'No' end POLeasing,
-		a.NOTEBR NotesforOverdueBranch,
-		a.NOTEGRP NotesforOverdueGroup,
+		--a.NOTEBR NotesforOverdueBranch,
+		--a.NOTEGRP NotesforOverdueGroup,
 		a.REMARKS Remarks,
 		a.STCD1 NPWP,
 		a.VBELN_LIPS Delivery,
@@ -193,17 +193,17 @@ select
 		a.PODAT ProofOfdeliverydate,
 		CONVERT(BIGINT,b.BILLING_DOC) BillingDocument,
 		b.BILLING_DATE  BillingDate,
-		a.ZREJECT_RSN ReasonforRejection,
-		a.PDC_PDG PDC_PDG,
+		--a.ZREJECT_RSN ReasonforRejection,
+		--a.PDC_PDG PDC_PDG,
 		a.Amount Amount ,
 		a.DUE_DATE DueDate,
-		a.VTWEG DistributionChannel,
-		a.Region Region,
+		--a.VTWEG DistributionChannel,
+		--a.Region Region,
 		a.NAME1_SOl SoldToPartyName ,
 		a.GSBER BusinessArea,
-		a.TELF1 CustomerPhoneNo,
-		a.Name_ser ServiceContact,
-		a.NAME_CON SalesContact,
+		--a.TELF1 CustomerPhoneNo,
+		--a.Name_ser ServiceContact,
+		--a.NAME_CON SalesContact,
 		a.KUNNR_BILPAR BillToParty,
 		a.KWMENG Quantity,
 		a.CURR_So SOCurr,
@@ -522,17 +522,17 @@ SELECT
 		ELSE POSNR_VA
 	END AS SalesDocumentItem
 	,'-' AS SalesDocumentType
-	,0 AS HigerLevelItem
+	--,0 AS HigerLevelItem
 	,st3.BSTKD AS SpaNo
 	,'-' AS PurchaseOrderNo
 	,st3.BSTDK AS PurchaseOrderDate
 	,NULL AS SalesOrganization
-	,NULL AS Division
+	--,NULL AS Division
 	,NULL AS Area
 	,NULL AS SalesOffice
 	,NULL AS SoldToParty
 	,st3.GTEXT AS EndDestination
-	,NULL AS BilltoPartyname
+	--,NULL AS BilltoPartyname
 	,st3.PAYER AS Payer
 	,st3.PAYER_NM AS Payername
 	,st3.FIN AS FinancingCompany
@@ -549,19 +549,19 @@ SELECT
 	,NULL AS ApplicationCode
 	,NULL AS CICCode
 	,NULL AS RequestDeliveryDate
-	,NULL AS TermsofPayment
-	,NULL AS PaymentTermsNote
+	--,NULL AS TermsofPayment
+	--,NULL AS PaymentTermsNote
 	,st3.ZTERM_NM AS Description
 	,NULL AS Price
 	,NULL AS Tax
-	,NULL AS PDC_PDG_curr
+	--,NULL AS PDC_PDG_curr
 	,st3.SLS AS SalesmanID
 	,st3.SLS_NM AS SalesmanName
-	,NULL AS DeliverySalesmanID
-	,NULL AS DeliverySalesmanName
-	,NULL AS Marketingprogram
-	,NULL AS Voucher
-	,NULL AS CCRNo
+	--,NULL AS DeliverySalesmanID
+	--,NULL AS DeliverySalesmanName
+	--,NULL AS Marketingprogram
+	--,NULL AS Voucher
+	--,NULL AS CCRNo
 	,NULL AS ReleaseApprovalNo
 	,NULL AS ReleaseApprovalDate
 	,NULL AS ReleaseApprovalBy
@@ -573,8 +573,8 @@ SELECT
 	,NULL AS ReleaseApproval
 	,NULL AS FullyPaid
 	,NULL AS POLeasing
-	,NULL AS NotesforOverdueBranch
-	,NULL AS NotesforOverdueGroup
+	--,NULL AS NotesforOverdueBranch
+	--,NULL AS NotesforOverdueGroup
 	,NULL AS Remarks
 	,NULL AS NPWP
 	,NULL AS Delivery
@@ -590,17 +590,17 @@ SELECT
 	,NULL AS ProofOfdeliverydate
 	,st3.BAST_NO AS BillingDocument
 	,st3.FKDAT AS BillingDate
-	,NULL AS ReasonforRejection
-	,NULL AS PDC_PDG
+	--,NULL AS ReasonforRejection
+	--,NULL AS PDC_PDG
 	,NULL AS Amount
 	,NULL AS DueDate
-	,NULL AS DistributionChannel
-	,NULL AS Region
+	--,NULL AS DistributionChannel
+	--,NULL AS Region
 	,NULL AS SoldToPartyName
 	,st3.GSBER AS BusinessArea
-	,NULL AS CustomerPhoneNo
-	,NULL AS ServiceContact
-	,NULL AS SalesContact
+	--,NULL AS CustomerPhoneNo
+	--,NULL AS ServiceContact
+	--,NULL AS SalesContact
 	,NULL AS BillToParty
 	,1 AS Quantity
 	,NULL AS SOCurr
@@ -706,17 +706,17 @@ SELECT
 		ELSE POSNR_VA
 	END AS SalesDocumentItem
 	,'-' AS SalesDocumentType
-	,0 AS HigerLevelItem
+	--,0 AS HigerLevelItem
 	,st3.BSTKD AS SpaNo
 	,'-' AS PurchaseOrderNo
 	,st3.BSTDK AS PurchaseOrderDate
 	,NULL AS SalesOrganization
-	,NULL AS Division
+	--,NULL AS Division
 	,NULL AS Area
 	,NULL AS SalesOffice
 	,NULL AS SoldToParty
 	,st3.GTEXT AS EndDestination
-	,NULL AS BilltoPartyname
+	--,NULL AS BilltoPartyname
 	,st3.PAYER AS Payer
 	,st3.PAYER_NM AS Payername
 	,st3.FIN AS FinancingCompany
@@ -733,19 +733,19 @@ SELECT
 	,NULL AS ApplicationCode
 	,NULL AS CICCode
 	,NULL AS RequestDeliveryDate
-	,NULL AS TermsofPayment
-	,NULL AS PaymentTermsNote
+	--,NULL AS TermsofPayment
+	--,NULL AS PaymentTermsNote
 	,st3.ZTERM_NM AS Description
 	,NULL AS Price
 	,NULL AS Tax
-	,NULL AS PDC_PDG_curr
+	--,NULL AS PDC_PDG_curr
 	,st3.SLS AS SalesmanID
 	,st3.SLS_NM AS SalesmanName
-	,NULL AS DeliverySalesmanID
-	,NULL AS DeliverySalesmanName
-	,NULL AS Marketingprogram
-	,NULL AS Voucher
-	,NULL AS CCRNo
+	--,NULL AS DeliverySalesmanID
+	--,NULL AS DeliverySalesmanName
+	--,NULL AS Marketingprogram
+	--,NULL AS Voucher
+	--,NULL AS CCRNo
 	,NULL AS ReleaseApprovalNo
 	,NULL AS ReleaseApprovalDate
 	,NULL AS ReleaseApprovalBy
@@ -757,8 +757,8 @@ SELECT
 	,NULL AS ReleaseApproval
 	,NULL AS FullyPaid
 	,NULL AS POLeasing
-	,NULL AS NotesforOverdueBranch
-	,NULL AS NotesforOverdueGroup
+	--,NULL AS NotesforOverdueBranch
+	--,NULL AS NotesforOverdueGroup
 	,NULL AS Remarks
 	,NULL AS NPWP
 	,NULL AS Delivery
@@ -774,17 +774,17 @@ SELECT
 	,NULL AS ProofOfdeliverydate
 	,NULL AS BillingDocument
 	,NULL AS BillingDate
-	,NULL AS ReasonforRejection
-	,NULL AS PDC_PDG
+	--,NULL AS ReasonforRejection
+	--,NULL AS PDC_PDG
 	,NULL AS Amount
 	,NULL AS DueDate
-	,NULL AS DistributionChannel
-	,NULL AS Region
+	--,NULL AS DistributionChannel
+	--,NULL AS Region
 	,NULL AS SoldToPartyName
 	,st3.GSBER AS BusinessArea
-	,NULL AS CustomerPhoneNo
-	,NULL AS ServiceContact
-	,NULL AS SalesContact
+	--,NULL AS CustomerPhoneNo
+	--,NULL AS ServiceContact
+	--,NULL AS SalesContact
 	,NULL AS BillToParty
 	,1 AS Quantity
 	,NULL AS SOCurr
@@ -912,17 +912,17 @@ select
 	b.SalesDocument,
 	b.SalesDocumentItem,
 	b.SalesDocumentType,
-	b.HigerLevelItem,
+	--b.HigerLevelItem,
 	b.SpaNo,
 	b.PurchaseOrderNo,
 	b.PurchaseOrderDate,
 	b.SalesOrganization,
-	b.Division,
+	--b.Division,
 	b.Area,
 	b.SalesOffice,
 	b.SoldToParty,
 	b.EndDestination,
-	b.BilltoPartyname,
+	--b.BilltoPartyname,
 	b.Payer,
 	b.Payername,
 	b.FinancingCompany,
@@ -939,19 +939,19 @@ select
 	b.ApplicationCode,
 	b.CICGroup,
 	b.RequestDeliveryDate,
-	b.TermsofPayment,
-	b.PaymentTermsNote,
+	--b.TermsofPayment,
+	--b.PaymentTermsNote,
 	b.Description,
 	b.Price,
 	b.Tax,
-	b.PDC_PDG_curr,
+	--b.PDC_PDG_curr,
 	b.SalesmanID,
 	b.SalesmanName,
-	b.DeliverySalesmanID,
-	b.DeliverySalesmanName,
-	b.Marketingprogram,
-	b.Voucher,
-	b.CCRNo,
+	--b.DeliverySalesmanID,
+	--b.DeliverySalesmanName,
+	--b.Marketingprogram,
+	--b.Voucher,
+	--b.CCRNo,
 	b.ReleaseApprovalNo,
 	b.ReleaseApprovalDate,
 	b.ReleaseApprovalBy,
@@ -963,8 +963,8 @@ select
 	b.ReleaseApproval,
 	b.FullyPaid,
 	b.POLeasing,
-	b.NotesforOverdueBranch,
-	b.NotesforOverdueGroup,
+	--b.NotesforOverdueBranch,
+	--b.NotesforOverdueGroup,
 	b.Remarks,
 	b.NPWP,
 	b.Delivery,
@@ -977,17 +977,17 @@ select
 	b.ProofOfdeliverydate,
 	b.BillingDocument,
 	b.BillingDate,
-	b.ReasonforRejection,
-	b.PDC_PDG,
+	--b.ReasonforRejection,
+	--b.PDC_PDG,
 	b.Amount,
 	b.DueDate,
-	b.DistributionChannel,
-	b.Region,
+	--b.DistributionChannel,
+	--b.Region,
 	b.SoldToPartyName,
 	b.BusinessArea,
-	b.CustomerPhoneNo,
-	b.ServiceContact,
-	b.SalesContact,
+	--b.CustomerPhoneNo,
+	--b.ServiceContact,
+	--b.SalesContact,
 	b.BillToParty,
 	b.Quantity,
 	b.SOCurr,
