@@ -1,7 +1,6 @@
 delete from EDW_ANALYTICS.CRM.EC_fact_invoice where format(MTD,'yyyyMM') = format(CURRENT_TIMESTAMP, 'yyyyMM');
 --delete from EDW_ANALYTICS.CRM.EC_fact_invoice where format(MTD,'yyyyMM') = '202111';
 
-
 --CTE Invoiced PP that mapped as carried over
 with invoiced_carriedover as (
 select 
@@ -127,7 +126,7 @@ select
 	b.MaterialType,
 	b.CICGroups,
 	b.AccountID,
-	CONCAT(b.AccountName, ' / ',c.AccountName) as AccountName,
+	b.AccountName,
 	b.ProductHierarchy,
 	b.Customer_Group,
 	b.area_name,
@@ -276,7 +275,7 @@ select
 	b.MaterialType,
 	b.CICGroups,
 	b.AccountID,
-	CONCAT(b.AccountName, ' / ',c.AccountName) as AccountName,
+	b.AccountName,
 	b.ProductHierarchy,
 	b.Customer_Group,
 	b.area_name,
@@ -581,7 +580,7 @@ select
 	b.MaterialType,
 	b.CICGroups,
 	b.AccountID,
-	CONCAT(b.AccountName, ' / ',c.AccountName) as AccountName,
+	b.AccountName,
 	b.ProductHierarchy,
 	b.Customer_Group,
 	b.area_name,
@@ -731,7 +730,7 @@ select
 	b.MaterialType,
 	b.CICGroups,
 	b.AccountID,
-	CONCAT(b.AccountName, ' / ',c.AccountName) as AccountName,
+	b.AccountName,
 	b.ProductHierarchy,
 	b.Customer_Group,
 	b.area_name,
@@ -886,7 +885,7 @@ select
 	b.MaterialType,
 	b.CICGroups,
 	b.AccountID,
-	CONCAT(b.AccountName, ' / ',c.AccountName) as AccountName,
+	b.AccountName,
 	b.ProductHierarchy,
 	b.Customer_Group,
 	b.area_name,
@@ -1042,7 +1041,7 @@ select
 	b.MaterialType,
 	b.CICGroups,
 	b.AccountID,
-	CONCAT(b.AccountName, ' / ',c.AccountName) as AccountName,
+	b.AccountName,
 	b.ProductHierarchy,
 	b.Customer_Group,
 	b.area_name,
