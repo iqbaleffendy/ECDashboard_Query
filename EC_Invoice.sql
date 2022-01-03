@@ -1,5 +1,4 @@
-delete from EDW_ANALYTICS.CRM.EC_fact_invoice where format(MTD,'yyyyMM') = format(CURRENT_TIMESTAMP, 'yyyyMM');
---delete from EDW_ANALYTICS.CRM.EC_fact_invoice where format(MTD,'yyyyMM') = '202111';
+delete from EDW_ANALYTICS.CRM.EC_fact_invoice where format(MTD,'yyyyMM') = (case when day(current_timestamp) = 1 then format(dateadd(month, -1, current_timestamp), 'yyyyMM') else format(CURRENT_TIMESTAMP, 'yyyyMM') end);
 
 --CTE Invoiced PP that mapped as carried over
 with invoiced_carriedover as (
