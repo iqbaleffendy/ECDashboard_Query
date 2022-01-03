@@ -1,4 +1,4 @@
-delete from EDW_ANALYTICS.CRM.EC_fact_scorelog where format(MTD, 'yyyy-MM') = format(CURRENT_TIMESTAMP, 'yyyy-MM');
+delete from EDW_ANALYTICS.CRM.EC_fact_scorelog where format(MTD, 'yyyy-MM') = (case when day(current_timestamp) = 1 then format(dateadd(month, -1, current_timestamp), 'yyyy-MM') else format(CURRENT_TIMESTAMP, 'yyyy-MM') end);
 
 	with forecaseDaily as(
 select
@@ -117,7 +117,7 @@ left join EDW_ANALYTICS.CRM.EC_dim_company_exception_map dcm on dcm.CompanyName 
 
 where 1=1 
 --and (FORMAT(b.billing_date, 'yyyy') = format(CURRENT_TIMESTAMP, 'yyyy') or FORMAT(ScoreLog.SCORE_DATE, 'yyyy') = format(CURRENT_TIMESTAMP, 'yyyy')) 
-and (FORMAT(b.billing_date, 'yyyyMM') = format(CURRENT_TIMESTAMP, 'yyyyMM') or FORMAT(ScoreLog.SCORE_DATE, 'yyyyMM') = format(CURRENT_TIMESTAMP, 'yyyyMM')) 
+and (FORMAT(b.billing_date, 'yyyyMM') = (case when day(current_timestamp) = 1 then format(dateadd(month, -1, current_timestamp), 'yyyyMM') else format(CURRENT_TIMESTAMP, 'yyyyMM') end) or FORMAT(ScoreLog.SCORE_DATE, 'yyyyMM') = (case when day(current_timestamp) = 1 then format(dateadd(month, -1, current_timestamp), 'yyyyMM') else format(CURRENT_TIMESTAMP, 'yyyyMM') end)) 
 and left(b.MFRPN, 2) in ('M1','E1')
 
 ) a left join EDW_ANALYTICS.CRM.EC_dim_area_store das on das.sales_code = a.sales_off_code
@@ -209,7 +209,7 @@ LEFT JOIN EDW_ANALYTICS.CRM.EC_dim_area_store das ON das.sales_code = st3.sales_
 
 where 1=1 
 --and FORMAT(st3.SCORE_DATE, 'yyyy') = FORMAT(CURRENT_TIMESTAMP, 'yyyy')
-and FORMAT(st3.SCORE_DATE, 'yyyyMM') = FORMAT(CURRENT_TIMESTAMP, 'yyyyMM')
+and FORMAT(st3.SCORE_DATE, 'yyyyMM') = (case when day(current_timestamp) = 1 then format(dateadd(month, -1, current_timestamp), 'yyyyMM') else format(CURRENT_TIMESTAMP, 'yyyyMM') end)
 
 ) a left join EDW_ANALYTICS.CRM.EC_dim_area_store das on das.sales_code = a.sales_off_code
 

@@ -1,4 +1,4 @@
-DELETE FROM EDW_ANALYTICS.CRM.EC_fact_invoice_progress where MonthDeliveryDate = format(current_timestamp, 'yyyyMM');
+DELETE FROM EDW_ANALYTICS.CRM.EC_fact_invoice_progress where MonthDeliveryDate = (case when day(current_timestamp) = 1 then format(dateadd(month, -1, current_timestamp), 'yyyyMM') else format(CURRENT_TIMESTAMP, 'yyyyMM') end);
 
 INSERT INTO EDW_ANALYTICS.CRM.EC_fact_invoice_progress
 SELECT
@@ -117,7 +117,7 @@ CROSS JOIN (
 		INDUSTRY_KEY,
 		CONCAT(MarketSector, '-', MaterialType) AS MappingID 
 	FROM EDW_ANALYTICS.CRM.EC_fact_invoice
-	WHERE FORMAT(MTD, 'yyyyMM') = FORMAT(CURRENT_TIMESTAMP, 'yyyyMM')
+	WHERE FORMAT(MTD, 'yyyyMM') = (case when day(current_timestamp) = 1 then format(dateadd(month, -1, current_timestamp), 'yyyyMM') else format(CURRENT_TIMESTAMP, 'yyyyMM') end)
 	AND CASE WHEN (area_name LIKE '%Java' and MaterialType IN ('MACHINE', 'FORK_LIFT')) THEN 'Java' WHEN (area_name LIKE '%Sumatera' and MaterialType IN ('MACHINE', 'FORK_LIFT')) THEN 'Sumatera' WHEN area_name = 'Trakindo Utama' then 'TUS' ELSE area_name END IS NOT NULL
 	GROUP BY 
 		FORMAT(MTD, 'yyyyMM'), 
@@ -248,7 +248,7 @@ SELECT
 	CONCAT(MarketSector, '-', MaterialType) AS MappingID
 
 FROM EDW_ANALYTICS.CRM.EC_fact_invoice
-WHERE FORMAT(MTD, 'yyyyMM') = FORMAT(CURRENT_TIMESTAMP, 'yyyyMM') --End of TableSource
+WHERE FORMAT(MTD, 'yyyyMM') = (case when day(current_timestamp) = 1 then format(dateadd(month, -1, current_timestamp), 'yyyyMM') else format(CURRENT_TIMESTAMP, 'yyyyMM') end) --End of TableSource
 ) AS TableSource
 PIVOT(
 	COUNT(SalesDocument_)
@@ -299,7 +299,7 @@ SELECT
 	CONCAT(MarketSector, '-', MaterialType) AS MappingID
 
 FROM EDW_ANALYTICS.CRM.EC_fact_invoice
-WHERE FORMAT(MTD, 'yyyyMM') = FORMAT(CURRENT_TIMESTAMP, 'yyyyMM') --End of TableTotalSource
+WHERE FORMAT(MTD, 'yyyyMM') = (case when day(current_timestamp) = 1 then format(dateadd(month, -1, current_timestamp), 'yyyyMM') else format(CURRENT_TIMESTAMP, 'yyyyMM') end) --End of TableTotalSource
 ) AS TableTotalSource
 PIVOT(
 	COUNT(SalesDocument_)
