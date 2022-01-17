@@ -3,49 +3,50 @@ truncate table EDW_ANALYTICS_STG.CRM.stg_EC_forecastdaily;
 insert into EDW_ANALYTICS_STG.CRM.stg_EC_forecastdaily
 select 
 	oppt.LEAD_ID LeadID, 
-	oppt.OPPORTUNITY_ID OpportunityID, 
-	oppt.ITEM_NO OpportunityItemNo,
-	oppt.QUOTATION_ID QuotationID,
-	oppt.ITEM_NO_QUOTATION QuotationItemNo,
+	oppt.opp_id OpportunityID, 
+	oppt.opp_item_no OpportunityItemNo,
+	oppt.quot_id QuotationID,
+	oppt.quot_item_no QuotationItemNo,
 	oppt.SO_ID SOID,
-	oppt.ITEM_NO_SO SOItemNo,
-    CONVERT(date, CAST(oppt.LEAD_DATE_KEY AS varchar)) as LeadCreatedDate, 
-    CONVERT(date, CAST(oppt.LEAD_CHANGED_DATE_KEY AS varchar)) as LeadChangedDate,
+	oppt.so_item_no SOItemNo,
+    oppt.lead_created_date as LeadCreatedDate, 
+    oppt.lead_changed_date as LeadChangedDate,
 	slo.[DESCRIPTION] as SourceofLead,
-    CONVERT(date, CAST(oppt.OPP_DATE_KEY AS varchar)) as OppIDCreatedDate,
-    CONVERT(date, CAST(oppt.OPP_CHANGED_DATE_KEY AS varchar)) as OppIDChangedDate,
-    CONVERT(date, CAST(oppt.OPP_ITEM_DATE_KEY AS varchar)) as OppItemCreatedDate,
-    CONVERT(date, CAST(oppt.OPP_ITEM_CHANGED_DATE_KEY AS varchar)) as OppItemChangedDate,
-	CONVERT(date, CAST(oppt.QUOT_CREATED_DATE_KEY AS varchar)) as QuotationIDCreatedDate, 
-    CONVERT(date, CAST(oppt.QUOT_CHANGED_DATE_KEY AS varchar)) as QuotationIDChangedDate,
-    CONVERT(date, CAST(oppt.QUOT_ITEM_CREATED_DATE_KEY AS varchar)) as QuotationItemCreatedDate, 
-    CONVERT(date, CAST(oppt.QUOT_ITEM_CHANGED_DATE_KEY AS varchar)) as QuotationItemChangedDate,
-	CONVERT(date, CAST(oppt.SO_CREATED_DATE_KEY AS varchar)) as SOIDCreatedDate,
-    CONVERT(date, CAST(oppt.BILLING_CREATED_DATE AS varchar)) as BillingIDCreatedDate,
+    oppt.opp_created_date as OppIDCreatedDate,
+    oppt.opp_changed_date as OppIDChangedDate,
+    oppt.opp_item_created_date as OppItemCreatedDate,
+    oppt.opp_item_changed_date as OppItemChangedDate,
+	oppt.quot_created_date as QuotationIDCreatedDate, 
+    oppt.quot_changed_date as QuotationIDChangedDate,
+    oppt.quot_item_created_date as QuotationItemCreatedDate, 
+    oppt.quot_changed_date as QuotationItemChangedDate,
+	oppt.so_created_date as SOIDCreatedDate,
+    oppt.BILLING_CREATED_DATE as BillingIDCreatedDate,
 	oppt.TRANSACTION_DESC TransactionDescription,
 	oppt.customer_key,
-	dc.CUSTOMER_CODE as AccountID,
-	dc.FULL_NAME as AccountName,
+	dc.Account_ID as AccountID,
+	dc.Account_Name as AccountName,
 	cic.CIC_Group CICGroup,
 	cic.CIC_Description CICDescription,
 	dsl.AREA_NAME AS SalesOfficeArea,
-	dsl.STORE_ABBREVATION_NAME + ' - ' + dsl.STORE_NAME as SALES_OFFICE,
-	dsl.store_abbrevation_name sales_off_code,
-	dsl.STORE_ABBREVATION_NAME AS SalesOffice,
+	dsl.store_abbreviation_name + ' - ' + dsl.Sales_Office_Sales_Contributor as SALES_OFFICE,
+	dsl.store_abbreviation_name sales_off_code,
+	dsl.store_abbreviation_name AS SalesOffice,
 	dsl.COMPANY_NAME,
 	dsl.SUB_COMPANY_NAME,
 	dsl.REGION_NAME,
-	case when dse.occupation_code = 'SE' then 
-	dse.FULL_NAME else 
-	dsp.FULL_NAME end as SalesRepsName,
-		case when dse.occupation_code = 'SE' then oppt.SALES_EXECUTIVE_KEY else oppt.SALES_PERSON_KEY end as SALES_KEY, 
-	case when dse.occupation_code = 'SE' then 
-	dse.OCCUPATION_CODE else 
-	dsp.OCCUPATION_CODE end as OccupationCode,
-	opst.[DESCRIPTION] as OpportunityStatus,
-    CONVERT(date, CAST(oppt.OPPORTUNITY_STATUS_DATE_KEY AS varchar)) as OpportunityStatusDate,
-    dqs.[DESCRIPTION] as QuotationStatus,
-	dss.[DESCRIPTION] AS SOItemStatus,
+	case when dsl.SUB_COMPANY_NAME = 'TUS' then dsr.Sales_Person_Name when oppt.sales_person_key not in (-1, -2)
+		then dsp.Sales_Person_Name else dse.Sales_Person_Name end as SalesRepsName,
+	case when dsl.SUB_COMPANY_NAME = 'TUS' then oppt.responsible_key when oppt.sales_person_key not in (-1, -2) then oppt.SALES_PERSON_KEY else oppt.sales_exec_key end as SALES_KEY, 
+	case when dsl.SUB_COMPANY_NAME = 'TUS' then dsr.OCCUPATION_CODE
+		when oppt.sales_person_key not in (-1, -2) then dsp.OCCUPATION_CODE
+		else dse.OCCUPATION_CODE end as OccupationCode,
+	case when oist.funel_status like '%lost%' or oist.funel_status like '%reviewed by superior%' or
+		opst.[description] like '%lost%' then 'LOST'
+		when oist.funel_status is null then UPPER(opst.[description]) else UPPER(LTRIM(SUBSTRING(oist.funel_status, 4, LEN(oist.funel_status)))) end as OpportunityStatus,
+    CONVERT(date, CAST(oppt.opp_status_date AS varchar)) as OpportunityStatusDate,
+    dqs.Quotation_Status as QuotationStatus,
+	dss.Sales_Order_Status AS SOItemStatus,
 	drj.Rejection_Reason as SORejectionReason,
     optp.OPPORTUNITY_TYPE_DESCRIPTION as OpportunityType, 
 	dpm.PRODUCT_MATERIAL_CODE ProductID,
@@ -55,21 +56,21 @@ select
 	sn.Serial_No SerialNo,
 	sn.Batch_ID BatchID,
 	oppt.MARKET_SECTOR_KEY as market_sector_key,
-	dms.MARKET_SECTOR_CODE PWC,
-	dms.[DESCRIPTION] as MarketDescription,
+	dms.PWC_Code PWC,
+	dms.PWC as MarketDescription,
 	dms.INDUSTRY_GROUP,
 	dms.PRODUCT_DIVISION,
 	dms.INDUSTRY_SEGMENT,
 	case when dms.[INDUSTRY_GROUP] is not null then dms.[INDUSTRY_GROUP] else dms.[INDUSTRY_SEGMENT] end as MarketSector,
-	dpd.[DESCRIPTION] as POINT_OF_DELIVERY_DESC,
-    CONVERT(date, CAST(oppt.DELIVERY_DATE_KEY AS varchar)) as deliverydate,
-	oppt.net_value NetValueInUSD,
-    oppt.net_value NetValueInIDR,
-	oppt.EXPECTED_TOTAL_VALUE ExpectedTotalVaue,
+	dba.Business_Area_Name as POINT_OF_DELIVERY_DESC,
+    oppt.delivery_date as deliverydate,
+	oppt.opp_net_value NetValueInUSD,
+    oppt.opp_net_value NetValueInIDR,
+	oppt.opp_expected_value ExpectedTotalVaue,
 	curr.CURRENCY_CODE Currency,
 	oppt.QUOT_NET_VALUE QuotNetValue,
 	currq.CURRENCY_CODE as QOUT_CURRENCY_CODE,
-	flag.[DESCRIPTION] as FORECAST,
+	oppt.forecast_flag as FORECAST,
 	da.Major_Account_Classification MajorAccountClassification,
 	da.Customer_Class_Code CustomerClassCode,
 	da.INDUSTRY_KEY,
@@ -78,44 +79,51 @@ select
     dpm.material_category MaterialType,
 	dpm.Category_ID,
 	oppt.CONFIDENCE_LEVEL ConfidenceLevel, 
-	dpm.BASIC_SELLING_PRICE_VALID_FROM BasicSellingPriceValidFrom,
-	dpm.BASIC_SELLING_PRICE_VALID_TO BasicSellingPriceValidTo,
-	dpmm.product_hierarchy,
+	dpm.valid_from BasicSellingPriceValidFrom,
+	dpm.valid_to BasicSellingPriceValidTo,
+	dpm.product_hierarchy,
 	dps.sales_type,
-	CONVERT(date, CAST(oppt.REPORT_DATE_KEY AS varchar)) as LOAD_DATE,
+	oppt.report_date as LOAD_DATE,
 	GETDATE() AS ETL_DATE
 from
-[LS_BI_PROD].EDW_CRM_ANALYTICS.dbo.FACT_CRM_OPPORTUNITY oppt left join
-[LS_BI_PROD].EDW_DIMENSION.CRM.DIM_OPPORTUNITY_TYPE optp on (oppt.OPPORTUNITY_TYPE_KEY = optp.OPPORTUNITY_TYPE_KEY) left join
-[LS_BI_PROD].EDW_DIMENSION.CRM.DIM_USER_STATUS opst on (oppt.USER_STATUS_KEY = opst.USER_STATUS_KEY) left join
-[LS_BI_PROD].EDW_DIMENSION.dbo.DIM_FLAG_YN flag on (oppt.FLAG_FORECAST_KEY = flag.FLAG_YN_KEY) left join
-[LS_BI_PROD].EDW_DIMENSION.CRM.DIM_SALES_PERSON dsp on (oppt.SALES_PERSON_KEY = dsp.SALES_PERSON_KEY) left join
-[LS_BI_PROD].EDW_DIMENSION.CRM.DIM_SALES_PERSON dse on (oppt.SALES_EXECUTIVE_KEY = dse.SALES_PERSON_KEY) left join
-[LS_BI_PROD].EDW_DIMENSION.CRM.DIM_SALES_LOCATION dsl on (oppt.SALES_LOCATION_KEY = dsl.SALES_LOCATION_KEY) left join
-(select case when isnumeric(product_material_code)=1 then cast(CAST(product_material_code as int) as nvarchar) else product_material_code end material_code
-, * from [LS_BI_PROD].EDW_DIMENSION.CRM.DIM_PRODUCT_MATERIAL) dpm on (oppt.PRODUCT_MATERIAL_KEY = dpm.PRODUCT_MATERIAL_KEY) left join
-[LS_BI_PROD].EDW_DIMENSION.CRM.DIM_MARKET_SECTOR dms on (oppt.MARKET_SECTOR_KEY = dms.MARKET_SECTOR_KEY) left join
-[LS_BI_PROD].EDW_DIMENSION.CRM.DIM_SO_STATUS dss on (oppt.SO_STATUS_KEY = dss.SO_STATUS_KEY) left join
-[LS_BI_PROD].EDW_DIMENSION.CRM.Dim_Rejection drj on (oppt.SO_REJECTION_KEY = drj.Rejection_key) left join
-[LS_BI_PROD].EDW_DIMENSION.CRM.DIM_POINT_OF_DELIVERY dpd on (oppt.POINT_OF_DELIVERY_KEY = dpd.POINT_OF_DELIVERY_KEY) left join
-[LS_BI_PROD].EDW_DIMENSION.CRM.DIM_QUOTATION_STATUS dqs on (oppt.QUOTATION_STATUS_KEY = dqs.QUOTATION_STATUS_KEY) left join
-[LS_BI_PROD].EDW_DIMENSION.CRM.DIM_CUSTOMER dc on (oppt.CUSTOMER_KEY = dc.CUSTOMER_KEY) left join
-[LS_BI_PROD].EDW_DIMENSION.CRM.Dim_CIC cic on (oppt.CIC_KEY = cic.CIC_KEY) left join 
-[LS_BI_PROD].EDW_DIMENSION.ECC.Dim_Serial_Equi sn on (oppt.SerialEqui_Key = sn.SerialEqui_Key) left join
-[LS_BI_PROD].EDW_DIMENSION.CRM.DIM_CURRENCY curr on (oppt.CURRENCY_KEY = curr.CURRENCY_KEY) left join
-[LS_BI_PROD].EDW_DIMENSION.CRM.DIM_CURRENCY currq on (oppt.QUOT_CURRENCY_KEY = currq.CURRENCY_KEY) left join
-[LS_BI_PROD].EDW_DIMENSION.CRM.DIM_ORIGIN_LEAD_OPP slo on (oppt.LEAD_ORIGIN_KEY = slo.ORIGIN_OPP_LEAD_KEY) left join
-[LS_BI_PROD].EDW_ANALYTICS.ECC.dim_account da on (case when dc.CUSTOMER_CODE < 0 then dc.CUSTOMER_CODE else RIGHT('00000' + CAST(dc.CUSTOMER_CODE as varchar(10)), 10) end = da.account_id) left join
-[LS_BI_PROD].EDW_ANALYTICS.crm.dim_price_scenario dps on oppt.PRICE_SCENARIO = dps.price_scenario_key
-left join (select case when isnumeric(product_material_code)=1 then cast(CAST(product_material_code as int) as nvarchar)  else product_material_code end material_code
-, * from [LS_BI_PROD].EDW_ANALYTICS.CRM.dim_opp_product_material) dpmm on dpm.material_code = dpmm.material_code
+EDW_ANALYTICS.CRM.fact_opportunity oppt left join
+EDW_ANALYTICS.CRM.dim_opportunity_type optp on (oppt.opp_type_key = optp.opportunity_type_key) left join
+EDW_ANALYTICS.CRM.dim_user_status opst on (
+oppt.opp_status_key = opst.user_status_key and opst.status_profile = 'ZOPPPS'
+) left join
+EDW_ANALYTICS.CRM.dim_opportunity_item_status oist on (
+oppt.opp_item_status_key = oist.Opportunity_Item_Status_Key
+) left join
+EDW_ANALYTICS.CRM.dim_origin_lead_opp slo on (oppt.LEAD_ORIGIN_KEY = slo.origin_lead_opp_key) left join
+EDW_ANALYTICS.CRM.dim_account dc on (oppt.CUSTOMER_KEY = dc.Account_Key) left join
+EDW_ANALYTICS.CRM.dim_crm_cic cic on (oppt.CIC_KEY = cic.CIC_KEY) left join
+EDW_ANALYTICS.CRM.dim_sales_location dsl on (oppt.sales_loc_key = dsl.SALES_LOCATION_KEY) left join
+EDW_ANALYTICS.CRM.dim_sales_person dsp on (oppt.sales_person_key = dsp.Sales_Person_Key) left join
+EDW_ANALYTICS.CRM.dim_sales_person dse on (oppt.sales_exec_key = dse.Sales_Person_Key) left join
+EDW_ANALYTICS.CRM.dim_sales_person dsr on (oppt.responsible_key = dsr.Sales_Person_Key) left join
+EDW_ANALYTICS.CRM.dim_sales_location dslr on (dsr.Sales_Location_Code = dslr.Sales_Location_Code) left join 
+EDW_ANALYTICS.CRM.dim_quotation_status dqs on (oppt.quot_status_key = dqs.QUOTATION_STATUS_KEY) left join
+EDW_ANALYTICS.CRM.dim_sales_order_status dss on (oppt.so_status_key = dss.Sales_Order_Status_Key) left join
+EDW_ANALYTICS.CRM.dim_rejection_reason drj on (oppt.so_reject_key = drj.Rejection_Reason_key) left join
+EDW_ANALYTICS.CRM.dim_opp_product_material dpm on (oppt.PRODUCT_MATERIAL_KEY = dpm.PRODUCT_MATERIAL_KEY) left join
+EDW_ANALYTICS.ECC.dim_serial_equi sn on (oppt.serial_key = sn.Serial_Equi_Key) left join
+EDW_ANALYTICS.CRM.dim_pwc dms on (oppt.market_sector_key = dms.PWC_KEY) left join
+EDW_ANALYTICS.ECC.dim_business_area dba on (oppt.delivery_business_area_key = dba.Business_Area_Key) left join
+EDW_ANALYTICS.CRM.dim_currency curr on (oppt.opp_CURRENCY_KEY = curr.CURRENCY_KEY) left join
+EDW_ANALYTICS.CRM.dim_currency currq on (oppt.QUOT_CURRENCY_KEY = currq.CURRENCY_KEY) left join
+EDW_ANALYTICS.ECC.dim_account da on (dc.Account_ID = da.account_id) left join
+EDW_ANALYTICS.crm.dim_price_scenario dps on oppt.price_scenario_key = dps.price_scenario_key
 where
-            optp.OPPORTUNITY_TYPE_DESCRIPTION not in ('N/A', 'Unknown', 'LEAD')
-            and ( opst.[DESCRIPTION] like '%stage 3%' or
-            opst.[DESCRIPTION] like '%stage 4%' or
-            opst.[DESCRIPTION] like '%stage 5%' or
-            opst.[DESCRIPTION] like '%stage 6%' or
-            opst.[DESCRIPTION] like '%won%' or
-            opst.[DESCRIPTION] like '%delivered%' or
-            opst.[DESCRIPTION] like '%lost%')
-			and left(oppt.LEAD_DATE_KEY, 4) = YEAR(GETDATE());
+    optp.opportunity_type_description not in ('N/A', 'Unknowan', 'LEAD')
+	and ((oist.funel_status like '%Stage 3%' or opst.[description] like '%Stage 3%') or
+	(oist.funel_status like '%Stage 4%' or opst.[description] like '%Stage 4%') or
+	(oist.funel_status like '%Stage 5%' or opst.[description] like '%Stage 5%') or
+	(oist.funel_status like '%Stage 6%' or opst.[description] like '%Stage 6%') or
+	(oist.funel_status like '%won%' or opst.[description] like '%won%') or
+	(oist.funel_status like '%delivered%' or opst.[description] like '%delivered%' ) or
+	(oist.funel_status like '%lost%' or oist.funel_status like '%reviewed by superior%' or
+	opst.[description] like '%lost%'))
+	and year(oppt.lead_created_date) > 2020
+
+order by oppt.LEAD_ID, oppt.opp_id, oppt.opp_item_no
+;
